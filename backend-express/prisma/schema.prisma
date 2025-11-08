@@ -1,0 +1,842 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  username  String   @unique
+  email     String?  @unique
+  password  String
+  fullName  String
+  role      Role     @default(SUPERVISOR)
+  isActive  Boolean  @default(true)
+  lastLogin DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  operatorProfile    Operator?
+  haulingActivities  HaulingActivity[]
+  incidentReports    IncidentReport[]
+  
+  @@map("users")
+}
+
+enum Role {
+  ADMIN
+  SUPERVISOR
+  OPERATOR
+  DISPATCHER
+  MAINTENANCE_STAFF
+}
+
+model MiningSite {
+  id          String   @id @default(cuid())
+  code        String   @unique
+  name        String
+  siteType    SiteType
+  isActive    Boolean  @default(true)
+  latitude    Float?
+  longitude   Float?
+  elevation   Float?
+  capacity    Float?
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  loadingPoints     LoadingPoint[]
+  dumpingPoints     DumpingPoint[]
+  roadSegments      RoadSegment[]
+  weatherLogs       WeatherLog[]
+  productionRecords ProductionRecord[]
+  
+  @@map("mining_sites")
+}
+
+enum SiteType {
+  PIT
+  STOCKPILE
+  CRUSHER
+  PORT
+  COAL_HAULING_ROAD
+  ROM_PAD
+}
+
+model LoadingPoint {
+  id            String     @id @default(cuid())
+  code          String     @unique
+  name          String
+  miningSiteId  String
+  excavatorId   String?
+  isActive      Boolean    @default(true)
+  maxQueueSize  Int        @default(5)
+  latitude      Float?
+  longitude     Float?
+  coalSeam      String?
+  coalQuality   Json?
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+  
+  miningSite        MiningSite        @relation(fields: [miningSiteId], references: [id])
+  excavator         Excavator?        @relation(fields: [excavatorId], references: [id])
+  haulingActivities HaulingActivity[]
+  queueLogs         QueueLog[]
+  
+  @@map("loading_points")
+}
+
+model DumpingPoint {
+  id           String   @id @default(cuid())
+  code         String   @unique
+  name         String
+  miningSiteId String
+  dumpingType  DumpingType
+  isActive     Boolean  @default(true)
+  capacity     Float?
+  currentStock Float    @default(0)
+  latitude     Float?
+  longitude    Float?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  
+  miningSite        MiningSite        @relation(fields: [miningSiteId], references: [id])
+  haulingActivities HaulingActivity[]
+  
+  @@map("dumping_points")
+}
+
+enum DumpingType {
+  STOCKPILE
+  CRUSHER
+  WASTE_DUMP
+  ROM_STOCKPILE
+  PORT
+}
+
+model RoadSegment {
+  id              String       @id @default(cuid())
+  code            String       @unique
+  name            String
+  miningSiteId    String
+  startPoint      String
+  endPoint        String
+  distance        Float
+  roadCondition   RoadCondition @default(GOOD)
+  maxSpeed        Int          @default(30)
+  gradient        Float?
+  isActive        Boolean      @default(true)
+  lastMaintenance DateTime?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+  
+  miningSite        MiningSite        @relation(fields: [miningSiteId], references: [id])
+  haulingActivities HaulingActivity[]
+  
+  @@map("road_segments")
+}
+
+enum RoadCondition {
+  EXCELLENT
+  GOOD
+  FAIR
+  POOR
+  CRITICAL
+}
+
+model Truck {
+  id               String         @id @default(cuid())
+  code             String         @unique
+  name             String
+  brand            String?
+  model            String?
+  yearManufacture  Int?
+  capacity         Float
+  fuelCapacity     Float?
+  status           TruckStatus    @default(IDLE)
+  lastMaintenance  DateTime?
+  nextMaintenance  DateTime?
+  totalHours       Int            @default(0)
+  totalDistance    Float          @default(0)
+  currentOperatorId String?
+  currentLocation  String?
+  isActive         Boolean        @default(true)
+  purchaseDate     DateTime?
+  retirementDate   DateTime?
+  remarks          String?
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  
+  currentOperator       Operator?          @relation(fields: [currentOperatorId], references: [id])
+  haulingActivities     HaulingActivity[]
+  maintenanceLogs       MaintenanceLog[]
+  fuelConsumptions      FuelConsumption[]
+  incidentReports       IncidentReport[]
+  equipmentStatusLogs   EquipmentStatusLog[]
+  
+  @@map("trucks")
+}
+
+enum TruckStatus {
+  IDLE
+  HAULING
+  LOADING
+  DUMPING
+  IN_QUEUE
+  MAINTENANCE
+  BREAKDOWN
+  REFUELING
+  STANDBY
+  OUT_OF_SERVICE
+}
+
+model Excavator {
+  id               String            @id @default(cuid())
+  code             String            @unique
+  name             String
+  brand            String?
+  model            String?
+  yearManufacture  Int?
+  bucketCapacity   Float?
+  status           ExcavatorStatus   @default(ACTIVE)
+  lastMaintenance  DateTime?
+  nextMaintenance  DateTime?
+  totalHours       Int               @default(0)
+  currentLocation  String?
+  isActive         Boolean           @default(true)
+  purchaseDate     DateTime?
+  retirementDate   DateTime?
+  remarks          String?
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  
+  loadingPoints         LoadingPoint[]
+  haulingActivities     HaulingActivity[]
+  maintenanceLogs       MaintenanceLog[]
+  fuelConsumptions      FuelConsumption[]
+  incidentReports       IncidentReport[]
+  equipmentStatusLogs   EquipmentStatusLog[]
+  
+  @@map("excavators")
+}
+
+enum ExcavatorStatus {
+  ACTIVE
+  IDLE
+  MAINTENANCE
+  BREAKDOWN
+  STANDBY
+  OUT_OF_SERVICE
+}
+
+model SupportEquipment {
+  id               String                  @id @default(cuid())
+  code             String                  @unique
+  name             String
+  equipmentType    SupportEquipmentType
+  brand            String?
+  model            String?
+  status           SupportEquipmentStatus  @default(ACTIVE)
+  lastMaintenance  DateTime?
+  totalHours       Int                     @default(0)
+  isActive         Boolean                 @default(true)
+  createdAt        DateTime                @default(now())
+  updatedAt        DateTime                @updatedAt
+  
+  maintenanceLogs       MaintenanceLog[]
+  fuelConsumptions      FuelConsumption[]
+  equipmentStatusLogs   EquipmentStatusLog[]
+  
+  @@map("support_equipment")
+}
+
+enum SupportEquipmentType {
+  GRADER
+  WATER_TRUCK
+  FUEL_TRUCK
+  DOZER
+  COMPACTOR
+  LIGHT_VEHICLE
+}
+
+enum SupportEquipmentStatus {
+  ACTIVE
+  IDLE
+  MAINTENANCE
+  BREAKDOWN
+  OUT_OF_SERVICE
+}
+
+model Operator {
+  id              String       @id @default(cuid())
+  userId          String       @unique
+  employeeNumber  String       @unique
+  licenseNumber   String?
+  licenseType     LicenseType
+  licenseExpiry   DateTime?
+  competency      Json?
+  status          OperatorStatus @default(ACTIVE)
+  shift           Shift?
+  totalHours      Int          @default(0)
+  rating          Float?       @default(5.0)
+  joinDate        DateTime
+  resignDate      DateTime?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+  
+  user                  User                @relation(fields: [userId], references: [id])
+  trucks                Truck[]
+  haulingActivities     HaulingActivity[]
+  incidentReports       IncidentReport[]
+  
+  @@map("operators")
+}
+
+enum LicenseType {
+  SIM_A
+  SIM_B1
+  SIM_B2
+  OPERATOR_ALAT_BERAT
+}
+
+enum OperatorStatus {
+  ACTIVE
+  ON_LEAVE
+  SICK
+  RESIGNED
+  SUSPENDED
+}
+
+enum Shift {
+  SHIFT_1
+  SHIFT_2
+  SHIFT_3
+}
+
+model HaulingActivity {
+  id                    String              @id @default(cuid())
+  activityNumber        String              @unique
+  
+  truckId               String
+  excavatorId           String
+  operatorId            String
+  supervisorId          String
+  
+  loadingPointId        String
+  dumpingPointId        String
+  roadSegmentId         String?
+  
+  shift                 Shift
+  queueStartTime        DateTime?
+  queueEndTime          DateTime?
+  loadingStartTime      DateTime
+  loadingEndTime        DateTime?
+  departureTime         DateTime?
+  arrivalTime           DateTime?
+  dumpingStartTime      DateTime?
+  dumpingEndTime        DateTime?
+  returnTime            DateTime?
+  
+  queueDuration         Int                 @default(0)
+  loadingDuration       Int                 @default(0)
+  haulingDuration       Int                 @default(0)
+  dumpingDuration       Int                 @default(0)
+  returnDuration        Int                 @default(0)
+  totalCycleTime        Int                 @default(0)
+  
+  loadWeight            Float
+  targetWeight          Float
+  loadEfficiency        Float?
+  distance              Float
+  fuelConsumed          Float?
+  
+  status                HaulingStatus       @default(LOADING)
+  weatherCondition      String?
+  roadCondition         RoadCondition       @default(GOOD)
+  
+  isDelayed             Boolean             @default(false)
+  delayMinutes          Int                 @default(0)
+  delayReasonId         String?
+  delayReasonDetail     String?
+  
+  predictedDelayRisk    String?
+  predictedDelayMinutes Int?
+  
+  remarks               String?
+  createdAt             DateTime            @default(now())
+  updatedAt             DateTime            @updatedAt
+  
+  truck         Truck           @relation(fields: [truckId], references: [id])
+  excavator     Excavator       @relation(fields: [excavatorId], references: [id])
+  operator      Operator        @relation(fields: [operatorId], references: [id])
+  supervisor    User            @relation(fields: [supervisorId], references: [id])
+  loadingPoint  LoadingPoint    @relation(fields: [loadingPointId], references: [id])
+  dumpingPoint  DumpingPoint    @relation(fields: [dumpingPointId], references: [id])
+  roadSegment   RoadSegment?    @relation(fields: [roadSegmentId], references: [id])
+  delayReason   DelayReason?    @relation(fields: [delayReasonId], references: [id])
+  
+  @@index([truckId, loadingStartTime])
+  @@index([shift, loadingStartTime])
+  @@index([status])
+  @@map("hauling_activities")
+}
+
+enum HaulingStatus {
+  PLANNED
+  IN_QUEUE
+  LOADING
+  HAULING
+  DUMPING
+  RETURNING
+  COMPLETED
+  DELAYED
+  CANCELLED
+  INCIDENT
+}
+
+model QueueLog {
+  id              String       @id @default(cuid())
+  loadingPointId  String
+  truckId         String?
+  queueLength     Int
+  queueStartTime  DateTime
+  queueEndTime    DateTime?
+  waitingTime     Int?
+  timestamp       DateTime     @default(now())
+  
+  loadingPoint LoadingPoint @relation(fields: [loadingPointId], references: [id])
+  
+  @@index([loadingPointId, timestamp])
+  @@map("queue_logs")
+}
+
+model ProductionRecord {
+  id              String   @id @default(cuid())
+  recordDate      DateTime @db.Date
+  shift           Shift
+  miningSiteId    String
+  
+  targetProduction Float
+  actualProduction Float
+  achievement     Float
+  
+  avgCalori       Float?
+  avgAshContent   Float?
+  avgSulfur       Float?
+  avgMoisture     Float?
+  
+  totalTrips      Int      @default(0)
+  totalDistance   Float    @default(0)
+  totalFuel       Float    @default(0)
+  avgCycleTime    Float?
+  
+  trucksOperating Int      @default(0)
+  trucksBreakdown Int      @default(0)
+  excavatorsOperating Int  @default(0)
+  excavatorsBreakdown Int  @default(0)
+  
+  utilizationRate Float?
+  downtimeHours   Float    @default(0)
+  
+  remarks         String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  miningSite MiningSite @relation(fields: [miningSiteId], references: [id])
+  
+  @@unique([recordDate, shift, miningSiteId])
+  @@index([recordDate])
+  @@map("production_records")
+}
+
+model WeatherLog {
+  id            String        @id @default(cuid())
+  timestamp     DateTime      @default(now())
+  miningSiteId  String?
+  
+  condition     WeatherCondition
+  temperature   Float?
+  humidity      Float?
+  windSpeed     Float?
+  windDirection String?
+  rainfall      Float?
+  visibility    Visibility    @default(GOOD)
+  
+  waveHeight    Float?
+  seaCondition  String?
+  
+  isOperational Boolean       @default(true)
+  riskLevel     RiskLevel     @default(LOW)
+  
+  remarks       String?
+  
+  miningSite MiningSite? @relation(fields: [miningSiteId], references: [id])
+  
+  @@index([timestamp])
+  @@index([miningSiteId, timestamp])
+  @@map("weather_logs")
+}
+
+enum WeatherCondition {
+  CERAH
+  BERAWAN
+  MENDUNG
+  HUJAN_RINGAN
+  HUJAN_SEDANG
+  HUJAN_LEBAT
+  BADAI
+  KABUT
+}
+
+enum Visibility {
+  EXCELLENT
+  GOOD
+  MODERATE
+  POOR
+  VERY_POOR
+}
+
+enum RiskLevel {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+model MaintenanceLog {
+  id                String            @id @default(cuid())
+  maintenanceNumber String            @unique
+  
+  truckId           String?
+  excavatorId       String?
+  supportEquipmentId String?
+  
+  maintenanceType   MaintenanceType
+  scheduledDate     DateTime?
+  actualDate        DateTime
+  completionDate    DateTime?
+  
+  duration          Int?
+  cost              Float?
+  
+  description       String
+  partsReplaced     Json?
+  mechanicName      String?
+  
+  status            MaintenanceStatus @default(SCHEDULED)
+  
+  downtimeHours     Float             @default(0)
+  
+  remarks           String?
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  
+  truck             Truck?            @relation(fields: [truckId], references: [id])
+  excavator         Excavator?        @relation(fields: [excavatorId], references: [id])
+  supportEquipment  SupportEquipment? @relation(fields: [supportEquipmentId], references: [id])
+  
+  @@index([actualDate])
+  @@index([status])
+  @@map("maintenance_logs")
+}
+
+enum MaintenanceType {
+  PREVENTIVE
+  CORRECTIVE
+  PREDICTIVE
+  OVERHAUL
+  INSPECTION
+}
+
+enum MaintenanceStatus {
+  SCHEDULED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+  DELAYED
+}
+
+model IncidentReport {
+  id              String         @id @default(cuid())
+  incidentNumber  String         @unique
+  incidentDate    DateTime
+  reportDate      DateTime       @default(now())
+  
+  location        String
+  miningSiteCode  String?
+  
+  truckId         String?
+  excavatorId     String?
+  
+  reportedById    String
+  operatorId      String?
+  
+  incidentType    IncidentType
+  severity        Severity
+  description     String
+  rootCause       String?
+  
+  injuries        Int            @default(0)
+  fatalities      Int            @default(0)
+  equipmentDamage String?
+  productionLoss  Float?
+  estimatedCost   Float?
+  downtimeHours   Float          @default(0)
+  
+  status          IncidentStatus @default(REPORTED)
+  actionTaken     String?
+  preventiveMeasure String?
+  
+  photos          Json?
+  documents       Json?
+  
+  remarks         String?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  
+  truck       Truck?    @relation(fields: [truckId], references: [id])
+  excavator   Excavator? @relation(fields: [excavatorId], references: [id])
+  reportedBy  User      @relation(fields: [reportedById], references: [id])
+  operator    Operator? @relation(fields: [operatorId], references: [id])
+  
+  @@index([incidentDate])
+  @@index([severity])
+  @@map("incident_reports")
+}
+
+enum IncidentType {
+  ACCIDENT
+  NEAR_MISS
+  EQUIPMENT_FAILURE
+  SPILL
+  FIRE
+  COLLISION
+  ROLLOVER
+  ENVIRONMENTAL
+  SAFETY_VIOLATION
+}
+
+enum Severity {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum IncidentStatus {
+  REPORTED
+  INVESTIGATING
+  RESOLVED
+  CLOSED
+}
+
+model FuelConsumption {
+  id                  String   @id @default(cuid())
+  consumptionDate     DateTime
+  
+  truckId             String?
+  excavatorId         String?
+  supportEquipmentId  String?
+  
+  fuelType            FuelType
+  quantity            Float
+  costPerLiter        Float?
+  totalCost           Float?
+  
+  operatingHours      Float?
+  distance            Float?
+  fuelEfficiency      Float?
+  
+  fuelStation         String?
+  
+  remarks             String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+  
+  truck             Truck?            @relation(fields: [truckId], references: [id])
+  excavator         Excavator?        @relation(fields: [excavatorId], references: [id])
+  supportEquipment  SupportEquipment? @relation(fields: [supportEquipmentId], references: [id])
+  
+  @@index([consumptionDate])
+  @@map("fuel_consumptions")
+}
+
+enum FuelType {
+  SOLAR
+  BENSIN
+  PERTAMAX
+}
+
+model DelayReason {
+  id          String   @id @default(cuid())
+  code        String   @unique
+  category    DelayCategory
+  name        String
+  description String?
+  isActive    Boolean  @default(true)
+  
+  haulingActivities HaulingActivity[]
+  
+  @@map("delay_reasons")
+}
+
+enum DelayCategory {
+  WEATHER
+  EQUIPMENT
+  QUEUE
+  ROAD
+  OPERATOR
+  FUEL
+  ADMINISTRATIVE
+  SAFETY
+  OTHER
+}
+
+model EquipmentStatusLog {
+  id                  String    @id @default(cuid())
+  timestamp           DateTime  @default(now())
+  
+  truckId             String?
+  excavatorId         String?
+  supportEquipmentId  String?
+  
+  previousStatus      String
+  currentStatus       String
+  statusReason        String?
+  
+  location            String?
+  
+  durationMinutes     Int?
+  
+  remarks             String?
+  
+  truck             Truck?            @relation(fields: [truckId], references: [id])
+  excavator         Excavator?        @relation(fields: [excavatorId], references: [id])
+  supportEquipment  SupportEquipment? @relation(fields: [supportEquipmentId], references: [id])
+  
+  @@index([timestamp])
+  @@map("equipment_status_logs")
+}
+
+model PredictionLog {
+  id            String   @id @default(cuid())
+  predictionId  String   @unique
+  modelType     String
+  modelVersion  String?
+  
+  inputData     Json
+  
+  prediction    Json
+  confidence    Float?
+  
+  contextData   Json?
+  
+  actualOutcome Json?
+  isAccurate    Boolean?
+  
+  timestamp     DateTime @default(now())
+  
+  @@index([timestamp])
+  @@index([modelType])
+  @@map("prediction_logs")
+}
+
+model RecommendationLog {
+  id                String              @id @default(cuid())
+  recommendationId  String              @unique
+  
+  recommendation    String
+  category          RecommendationCategory
+  priority          Priority
+  
+  justification     String
+  contextData       Json?
+  
+  estimatedImpact   String?
+  estimatedSavings  Float?
+  
+  status            RecommendationStatus @default(PENDING)
+  executedBy        String?
+  executedAt        DateTime?
+  
+  actualImpact      String?
+  effectiveness     Float?
+  
+  remarks           String?
+  timestamp         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+  
+  @@index([timestamp])
+  @@index([status])
+  @@map("recommendation_logs")
+}
+
+enum RecommendationCategory {
+  ALLOCATION
+  MAINTENANCE
+  ROUTE_OPTIMIZATION
+  FUEL_EFFICIENCY
+  SAFETY
+  PRODUCTION
+  COST_REDUCTION
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum RecommendationStatus {
+  PENDING
+  EXECUTED
+  IGNORED
+  EXPIRED
+  CANCELLED
+}
+
+model ChatbotInteraction {
+  id              String   @id @default(cuid())
+  sessionId       String
+  userId          String?
+  
+  userQuery       String
+  queryIntent     String?
+  
+  retrievedContext Json?
+  sqlQuery        String?
+  
+  botResponse     String
+  responseSource  String?
+  confidence      Float?
+  
+  responseTime    Int?
+  tokensUsed      Int?
+  
+  userFeedback    String?
+  feedbackComment String?
+  
+  timestamp       DateTime @default(now())
+  
+  @@index([sessionId])
+  @@index([timestamp])
+  @@map("chatbot_interactions")
+}
+
+model SystemConfig {
+  id          String   @id @default(cuid())
+  configKey   String   @unique
+  configValue String
+  dataType    String
+  category    String
+  description String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@map("system_configs")
+}
