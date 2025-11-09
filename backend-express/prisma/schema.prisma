@@ -840,3 +840,228 @@ model SystemConfig {
   
   @@map("system_configs")
 }
+
+// ===== Vessel / Shipping Models =====
+
+model Vessel {
+  id                String        @id @default(cuid())
+  code              String        @unique
+  name              String
+  vesselType        VesselType
+
+  // Data Kapal
+  gt                Float         // Gross Tonnage
+  dwt               Float         // Deadweight Tonnage
+  loa               Float?        // Length Overall (meter)
+
+  // Kapasitas
+  capacity          Float         // Kapasitas muat (ton)
+
+  // Kepemilikan
+  owner             String        // Pemilik kapal
+  isOwned           Boolean       @default(false)
+
+  // Status
+  status            VesselStatus  @default(AVAILABLE)
+  currentLocation   String?
+
+  isActive          Boolean       @default(true)
+  remarks           String?
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  sailingSchedules  SailingSchedule[]
+  shipmentRecords   ShipmentRecord[]
+
+  @@map("vessels")
+}
+
+enum VesselType {
+  MOTHER_VESSEL
+  BARGE
+  TUG_BOAT
+}
+
+enum VesselStatus {
+  AVAILABLE
+  LOADING
+  SAILING
+  DISCHARGING
+  MAINTENANCE
+  CHARTERED
+}
+
+model SailingSchedule {
+  id                String          @id @default(cuid())
+  scheduleNumber    String          @unique
+  vesselId          String
+
+  voyageNumber      String
+
+  loadingPort       String
+  destination       String
+
+  etaLoading        DateTime
+  etsLoading        DateTime?
+  etaDestination    DateTime?
+
+  ataLoading        DateTime?
+  loadingStart      DateTime?
+  loadingComplete   DateTime?
+  atsLoading        DateTime?
+  ataDestination    DateTime?
+
+  plannedQuantity   Float
+  actualQuantity    Float?
+
+  buyer             String
+  contractNumber    String?
+
+  status            SailingStatus   @default(SCHEDULED)
+
+  remarks           String?
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  vessel            Vessel          @relation(fields: [vesselId], references: [id])
+  shipmentRecords   ShipmentRecord[]
+
+  @@index([vesselId])
+  @@index([etaLoading])
+  @@index([status])
+  @@map("sailing_schedules")
+}
+
+enum SailingStatus {
+  SCHEDULED
+  STANDBY
+  LOADING
+  SAILING
+  ARRIVED
+  DISCHARGING
+  COMPLETED
+  CANCELLED
+}
+
+model ShipmentRecord {
+  id                  String          @id @default(cuid())
+  shipmentNumber      String          @unique
+  vesselId            String
+  sailingScheduleId   String?
+
+  shipmentDate        DateTime
+  loadingDate         DateTime?
+
+  coalType            String
+  quantity            Float
+
+  calorie             Float?
+  totalMoisture       Float?
+  ashContent          Float?
+  sulfurContent       Float?
+
+  stockpileOrigin     String?
+
+  buyer               String
+  destination         String
+
+  surveyorName        String?
+  blNumber            String?
+  coaNumber           String?
+
+  freightCost         Float?
+  totalFreight        Float?
+
+  remarks             String?
+  createdAt           DateTime        @default(now())
+  updatedAt           DateTime        @updatedAt
+
+  vessel              Vessel          @relation(fields: [vesselId], references: [id])
+  sailingSchedule     SailingSchedule? @relation(fields: [sailingScheduleId], references: [id])
+
+  @@index([vesselId])
+  @@index([shipmentDate])
+  @@map("shipment_records")
+}
+
+model BargeLoadingLog {
+  id                String          @id @default(cuid())
+  loadingNumber     String          @unique
+
+  vesselCode        String
+  vesselName        String
+
+  loadingDate       DateTime
+  shift             Shift
+  startTime         DateTime
+  endTime           DateTime?
+
+  stockpileSource   String
+  quantity          Float
+
+  loaderUsed        String?
+  bargeTrips        Int             @default(0)
+
+  weatherCondition  String?
+  tidalCondition    String?
+
+  delayMinutes      Int             @default(0)
+  delayReason       String?
+
+  remarks           String?
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  @@index([loadingDate])
+  @@map("barge_loading_logs")
+}
+
+model JettyBerth {
+  id                String          @id @default(cuid())
+  code              String          @unique
+  name              String
+  portName          String
+
+  maxVesselSize     Float?
+  maxDraft          Float?
+
+  hasConveyor       Boolean         @default(false)
+  loadingCapacity   Float?
+
+  isActive          Boolean         @default(true)
+  remarks           String?
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  berthingLogs      BerthingLog[]
+
+  @@map("jetty_berths")
+}
+
+model BerthingLog {
+  id                String          @id @default(cuid())
+  jettyBerthId      String
+  vesselCode        String
+  vesselName        String
+
+  arrivalTime       DateTime
+  berthingTime      DateTime?
+  loadingStart      DateTime?
+  loadingEnd        DateTime?
+  departureTime     DateTime?
+
+  draftArrival      Float?
+  draftDeparture    Float?
+
+  waitingTime       Int             @default(0)
+
+  remarks           String?
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  jettyBerth        JettyBerth      @relation(fields: [jettyBerthId], references: [id])
+
+  @@index([jettyBerthId])
+  @@index([arrivalTime])
+  @@map("berthing_logs")
+}
