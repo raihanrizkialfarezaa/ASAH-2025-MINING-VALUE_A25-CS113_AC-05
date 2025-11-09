@@ -27,6 +27,7 @@ import {
   seedChatbotInteractions,
   seedSystemConfigs,
 } from './operational.seed.js';
+import { seedVessels } from './vessels.seed.js';
 import logger from '../../src/config/logger.js';
 
 async function cleanDatabase() {
@@ -48,6 +49,12 @@ async function cleanDatabase() {
   await prisma.roadSegment.deleteMany({});
   await prisma.dumpingPoint.deleteMany({});
   await prisma.loadingPoint.deleteMany({});
+  await prisma.berthingLog.deleteMany({});
+  await prisma.bargeLoadingLog.deleteMany({});
+  await prisma.shipmentRecord.deleteMany({});
+  await prisma.sailingSchedule.deleteMany({});
+  await prisma.jettyBerth.deleteMany({});
+  await prisma.vessel.deleteMany({});
   await prisma.operator.deleteMany({});
   await prisma.supportEquipment.deleteMany({});
   await prisma.excavator.deleteMany({});
@@ -100,6 +107,10 @@ async function main() {
     logger.info('Seeding support equipment...');
     const supportEquipment = await seedSupportEquipment();
     logger.info(`Berhasil membuat ${supportEquipment.length} support equipment`);
+
+    logger.info('Seeding vessels and shipping data...');
+    const vessels = await seedVessels();
+    logger.info(`Berhasil membuat ${vessels.length} vessels`);
 
     logger.info('Seeding delay reasons...');
     const delayReasons = await seedDelayReasons();
