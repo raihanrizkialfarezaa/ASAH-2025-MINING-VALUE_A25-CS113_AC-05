@@ -17,20 +17,55 @@ if (!fs.existsSync(exportsDir)) {
 async function exportTableToCSV(model, filename) {
   try {
     console.log(`Exporting ${model}...`);
-    const data = await prisma[model].findMany();
-
-    if (data.length === 0) {
-      console.log(`No data found in ${model}`);
-      return;
-    }
-
-    const json2csvParser = new Parser();
-    const csv = json2csvParser.parse(data);
-
+    const batchSize = 1000;
+    let total = 0;
     const filepath = path.join(exportsDir, filename);
-    fs.writeFileSync(filepath, csv);
-
-    console.log(`Exported ${data.length} records to ${filename}`);
+    const stream = fs.createWriteStream(filepath);
+    let lastId = null;
+    let first = true;
+    let more = true;
+    while (more) {
+      const q = { take: batchSize };
+      if (lastId !== null) q.where = { id: { gt: lastId } };
+      q.orderBy = { id: 'asc' };
+      let batch;
+      try {
+        batch = await prisma[model].findMany(q);
+      } catch (e) {
+        const all = await prisma[model].findMany();
+        if (!all || all.length === 0) {
+          stream.end();
+          console.log(`No data found in ${model}`);
+          return;
+        }
+        const json2csvParser = new Parser();
+        const csv = json2csvParser.parse(all);
+        stream.write(csv + '\n');
+        stream.end();
+        console.log(`Exported ${all.length} records to ${filename}`);
+        return;
+      }
+      if (!batch || batch.length === 0) {
+        more = false;
+        break;
+      }
+      if (first) {
+        const json2csvParser = new Parser();
+        const csv = json2csvParser.parse(batch);
+        stream.write(csv + '\n');
+        first = false;
+      } else {
+        const json2csvParser = new Parser({ header: false });
+        const csv = json2csvParser.parse(batch);
+        stream.write(csv + '\n');
+      }
+      total += batch.length;
+      lastId = batch[batch.length - 1].id;
+      if (batch.length < batchSize) more = false;
+    }
+    stream.end();
+    if (total === 0) console.log(`No data found in ${model}`);
+    else console.log(`Exported ${total} records to ${filename}`);
   } catch (error) {
     console.error(`Error exporting ${model}:`, error.message);
   }
@@ -62,6 +97,13 @@ async function exportAll() {
     await exportTableToCSV('recommendationLog', 'recommendation_logs.csv');
     await exportTableToCSV('chatbotInteraction', 'chatbot_interactions.csv');
     await exportTableToCSV('systemConfig', 'system_configs.csv');
+
+    await exportTableToCSV('vessel', 'vessels.csv');
+    await exportTableToCSV('sailingSchedule', 'sailing_schedules.csv');
+    await exportTableToCSV('shipmentRecord', 'shipment_records.csv');
+    await exportTableToCSV('bargeLoadingLog', 'barge_loading_logs.csv');
+    await exportTableToCSV('jettyBerth', 'jetty_berths.csv');
+    await exportTableToCSV('berthingLog', 'berthing_logs.csv');
 
     console.log('\nAll exports completed!');
     console.log(`Files saved to: ${exportsDir}`);
