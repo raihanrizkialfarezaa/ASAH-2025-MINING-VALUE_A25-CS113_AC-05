@@ -7,6 +7,7 @@ import Dashboard from './pages/Dashboard';
 import TruckList from './pages/trucks/TruckList';
 import ExcavatorList from './pages/excavators/ExcavatorList';
 import OperatorList from './pages/operators/OperatorList';
+import VesselList from './pages/vessels/VesselList';
 import HaulingList from './pages/hauling/HaulingList';
 import LocationManagement from './pages/locations/LocationManagement';
 import MaintenanceList from './pages/maintenance/MaintenanceList';
@@ -32,6 +33,7 @@ function App() {
                 <Routes>
                   <Route path="/dashboard" element={<Dashboard />} />
                   <Route path="/trucks" element={<TruckList />} />
+                  <Route path="/vessels" element={<VesselList />} />
                   <Route path="/excavators" element={<ExcavatorList />} />
                   <Route path="/operators" element={<OperatorList />} />
                   <Route path="/hauling" element={<HaulingList />} />

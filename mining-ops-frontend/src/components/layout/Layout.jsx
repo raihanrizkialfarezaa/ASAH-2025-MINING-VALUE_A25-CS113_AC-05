@@ -12,6 +12,7 @@ const Layout = ({ children }) => {
   const menuItems = [
     { path: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
     { path: '/trucks', icon: Truck, label: 'Trucks' },
+    { path: '/vessels', icon: Package, label: 'Vessels' },
     { path: '/excavators', icon: Construction, label: 'Excavators' },
     { path: '/operators', icon: Users, label: 'Operators' },
     { path: '/hauling', icon: Package, label: 'Hauling' },

@@ -12,6 +12,7 @@ import maintenanceRoutes from './maintenance.routes.js';
 import productionRoutes from './production.routes.js';
 import dashboardRoutes from './dashboard.routes.js';
 import mlProxyRoutes from './mlProxy.routes.js';
+import vesselRoutes from './vessel.routes.js';
 
 const router = express.Router();
 
@@ -28,5 +29,6 @@ router.use('/maintenance', maintenanceRoutes);
 router.use('/production', productionRoutes);
 router.use('/dashboard', dashboardRoutes);
 router.use('/ml', mlProxyRoutes);
+router.use('/vessels', vesselRoutes);
 
 export default router;
