@@ -1,0 +1,9 @@
+Parameter,Nilai
+harga_solar_per_liter,6800
+biaya_operator_per_jam,50000
+biaya_perawatan_per_km_truck,1500
+biaya_perawatan_per_jam_excavator,75000
+harga_jual_batubara_per_ton,850000
+target_produksi_harian_ton,5000
+biaya_downtime_per_jam,500000
+biaya_overhead_harian,5000000

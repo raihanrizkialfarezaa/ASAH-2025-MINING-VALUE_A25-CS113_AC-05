@@ -1,13 +1,13 @@
 "id","code","category","name","description","isActive"
-"cmhsbjvjl0agpmaftrpdu8ozy","DLY-001","WEATHER","Hujan Lebat","Kondisi hujan deras menghambat operasional",true
-"cmhsbjvjm0agqmaftqva6lmx9","DLY-002","WEATHER","Kabut Tebal","Jarak pandang terbatas",true
-"cmhsbjvjn0agrmaft370jg5vq","DLY-003","EQUIPMENT","Ban Bocor","Kerusakan ban dump truck",true
-"cmhsbjvjo0agsmaftjdonjtyo","DLY-004","EQUIPMENT","Mesin Overheat","Temperatur mesin berlebih",true
-"cmhsbjvjp0agtmaftjs2watn7","DLY-005","EQUIPMENT","Hydraulic Failure","Sistem hidrolik bermasalah",true
-"cmhsbjvjq0agumaft6juu8i5a","DLY-006","QUEUE","Antrian Panjang","Waiting time di loading point",true
-"cmhsbjvjr0agvmaft877wtdox","DLY-007","ROAD","Jalan Rusak","Kondisi jalan buruk",true
-"cmhsbjvjt0agwmaftoret6flo","DLY-008","ROAD","Jalan Licin","Permukaan jalan licin",true
-"cmhsbjvju0agxmaftco9t6wdm","DLY-009","OPERATOR","Operator Terlambat","Keterlambatan shift operator",true
-"cmhsbjvjw0agymaft5q0ex4n2","DLY-010","FUEL","Refueling","Proses pengisian BBM",true
-"cmhsbjvjx0agzmaftohfcqqxw","DLY-011","ADMINISTRATIVE","Dokumentasi","Proses administrasi",true
-"cmhsbjvjy0ah0maftp6zwadza","DLY-012","SAFETY","Safety Briefing","Briefing keselamatan",true
+"cmifyj1dj0agp2o7gk8ygok7d","DLY-001","WEATHER","Hujan Lebat","Kondisi hujan deras menghambat operasional",true
+"cmifyj1dl0agq2o7g0hso8xgc","DLY-002","WEATHER","Kabut Tebal","Jarak pandang terbatas",true
+"cmifyj1dm0agr2o7gpbeburjj","DLY-003","EQUIPMENT","Ban Bocor","Kerusakan ban dump truck",true
+"cmifyj1dn0ags2o7gldp1fz2b","DLY-004","EQUIPMENT","Mesin Overheat","Temperatur mesin berlebih",true
+"cmifyj1dn0agt2o7ggrz35cj9","DLY-005","EQUIPMENT","Hydraulic Failure","Sistem hidrolik bermasalah",true
+"cmifyj1do0agu2o7gyv69hqp6","DLY-006","QUEUE","Antrian Panjang","Waiting time di loading point",true
+"cmifyj1dp0agv2o7g2jgb5po7","DLY-007","ROAD","Jalan Rusak","Kondisi jalan buruk",true
+"cmifyj1dq0agw2o7g2e9wt6r8","DLY-008","ROAD","Jalan Licin","Permukaan jalan licin",true
+"cmifyj1dr0agx2o7g4q7ayrsb","DLY-009","OPERATOR","Operator Terlambat","Keterlambatan shift operator",true
+"cmifyj1ds0agy2o7g7lzqkpwh","DLY-010","FUEL","Refueling","Proses pengisian BBM",true
+"cmifyj1dt0agz2o7gaobga9pb","DLY-011","ADMINISTRATIVE","Dokumentasi","Proses administrasi",true
+"cmifyj1du0ah02o7gwq92q8nb","DLY-012","SAFETY","Safety Briefing","Briefing keselamatan",true

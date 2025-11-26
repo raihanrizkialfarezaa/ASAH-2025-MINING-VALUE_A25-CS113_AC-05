@@ -1,0 +1,4 @@
+tipe_equipment,probabilitas_breakdown_per_shift,durasi_perbaikan_jam_min,durasi_perbaikan_jam_max
+TRUCK,0.03,1,4
+EXCAVATOR,0.05,2,6
+SUPPORT,0.02,0.5,2

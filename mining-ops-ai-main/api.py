@@ -19,14 +19,14 @@ try:
         LLM_PROVIDER,                  # Cek status Ollama
         OLLAMA_MODEL                   # Nama model 
     )
-    print("✅ Berhasil mengimpor 'otak' dari simulator.py")
+    print("[OK] Berhasil mengimpor 'otak' dari simulator.py")
 except ImportError as e:
-    print(f"❌ ERROR CRITICAL: Gagal mengimpor dari 'simulator.py'.")
+    print(f"[ERROR] Gagal mengimpor dari 'simulator.py'.")
     print(f"Pastikan file 'simulator.py' ada di folder yang sama.")
     print(f"Detail Error: {e}")
     exit()
 except Exception as e:
-    print(f"❌ ERROR saat inisialisasi simulator: {e}")
+    print(f"[ERROR] saat inisialisasi simulator: {e}")
     exit()
 
 # --- 2. INISIALISASI APLIKASI API ---
@@ -136,7 +136,7 @@ async def dapatkan_rekomendasi_strategis(request: RecommendationRequest):
             raise HTTPException(status_code=500, detail="Simulasi selesai tapi tidak menghasilkan rekomendasi valid.")
             
     except Exception as e:
-        print(f"❌ Error di /get_top_3_strategies: {str(e)}")
+        print(f"[ERROR] /get_top_3_strategies: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Internal Server Error: {str(e)}")
 
 
@@ -152,7 +152,7 @@ async def tanya_jawab_chatbot(request: ChatRequest):
         raise HTTPException(status_code=503, detail="Layanan Chatbot (Ollama) tidak terhubung di server.")
 
     try:
-        print(f"💬 Menerima pertanyaan chatbot: {request.pertanyaan_user}")
+        print(f"[CHATBOT] Pertanyaan: {request.pertanyaan_user}")
 
         # 1. Format data ulang untuk prompt (memastikan struktur string json rapi)
         # Karena request.top_3_strategies_context sudah berupa list dict dari frontend,
@@ -197,7 +197,7 @@ async def tanya_jawab_chatbot(request: ChatRequest):
         # Handle jika Ollama mati mendadak
         if "Connection refused" in str(e):
              raise HTTPException(status_code=503, detail="Gagal menghubungi Ollama. Pastikan server Ollama berjalan.")
-        print(f"❌ Error di /ask_chatbot: {str(e)}")
+        print(f"[ERROR] /ask_chatbot: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error Chatbot: {str(e)}")
 
 # --- 5. ENDPOINT MANAJEMEN DATA (BONUS) ---
@@ -258,6 +258,6 @@ async def add_schedule(schedule: NewSchedule):
 
 # --- 6. JALANKAN SERVER ---
 if __name__ == "__main__":
-    print("🚀 Memulai Server API...")
-    print("📄 Dokumentasi tersedia di: http://127.0.0.1:8000/docs")
+    print("[OK] Memulai Server API...")
+    print("[INFO] Dokumentasi tersedia di: http://127.0.0.1:8000/docs")
     uvicorn.run(app, host="127.0.0.1", port=8000)

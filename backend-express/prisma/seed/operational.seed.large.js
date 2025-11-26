@@ -509,37 +509,34 @@ export const seedEquipmentStatusLogs = async (trucks, excavators, supportEquipme
 
 export const seedPredictionLogs = async () => {
   const predictionLogs = [];
-  const modelTypes = [
+  const predictionTypes = [
+    'STRATEGIC_RECOMMENDATION',
+    'FUEL_PREDICTION',
+    'LOAD_PREDICTION',
     'DELAY_PREDICTION',
-    'MAINTENANCE_PREDICTION',
-    'PRODUCTION_FORECAST',
-    'FUEL_OPTIMIZATION',
   ];
 
   for (let i = 0; i < 600; i++) {
-    const modelType = modelTypes[Math.floor(Math.random() * modelTypes.length)];
+    const predictionType = predictionTypes[Math.floor(Math.random() * predictionTypes.length)];
     const hoursAgo = Math.floor(Math.random() * 720);
 
     predictionLogs.push({
-      predictionId: `PRED-${String(i + 1).padStart(7, '0')}`,
-      modelType,
-      modelVersion: `v${Math.floor(Math.random() * 3) + 1}.${Math.floor(Math.random() * 10)}`,
-      inputData: {
-        feature1: Math.random() * 100,
-        feature2: Math.random() * 50,
-        feature3: Math.random() * 200,
+      predictionType,
+      inputParameters: {
+        weather: ['SUNNY', 'CLOUDY', 'RAINY'][Math.floor(Math.random() * 3)],
+        shift: ['PAGI', 'SIANG', 'MALAM'][Math.floor(Math.random() * 3)],
+        targetProduction: Math.floor(Math.random() * 5000) + 3000,
+        truckAvailable: Math.floor(Math.random() * 15) + 5,
+        excavatorAvailable: Math.floor(Math.random() * 5) + 1,
       },
-      prediction: {
-        value: Math.random() * 100,
+      results: {
+        prediction: Math.random() * 100,
+        confidence: 0.6 + Math.random() * 0.35,
         category: ['LOW', 'MEDIUM', 'HIGH'][Math.floor(Math.random() * 3)],
       },
-      confidence: 0.6 + Math.random() * 0.35,
-      contextData: {
-        timestamp: new Date(Date.now() - hoursAgo * 60 * 60 * 1000),
-        source: 'ML_MODEL',
-      },
-      actualOutcome: Math.random() > 0.3 ? { result: Math.random() * 100 } : null,
-      isAccurate: Math.random() > 0.2,
+      accuracy: Math.random() > 0.3 ? 0.7 + Math.random() * 0.25 : null,
+      executionTime: Math.floor(Math.random() * 5000) + 500,
+      modelVersion: `v${Math.floor(Math.random() * 3) + 1}.${Math.floor(Math.random() * 10)}`,
       timestamp: new Date(Date.now() - hoursAgo * 60 * 60 * 1000),
     });
   }
@@ -554,44 +551,48 @@ export const seedPredictionLogs = async () => {
 
 export const seedRecommendationLogs = async (users) => {
   const recommendationLogs = [];
-  const categories = [
-    'ALLOCATION',
-    'MAINTENANCE',
-    'ROUTE_OPTIMIZATION',
-    'FUEL_EFFICIENCY',
-    'SAFETY',
-    'PRODUCTION',
-  ];
-  const priorities = ['LOW', 'MEDIUM', 'HIGH', 'URGENT'];
-  const statuses = ['PENDING', 'EXECUTED', 'IGNORED'];
+  const types = ['STRATEGIC', 'OPERATIONAL', 'MAINTENANCE'];
   const executors = users.filter((u) => ['ADMIN', 'SUPERVISOR'].includes(u.role));
 
   for (let i = 0; i < 600; i++) {
     const daysAgo = Math.floor(Math.random() * 60);
-    const status = statuses[Math.floor(Math.random() * statuses.length)];
+    const hasImplemented = Math.random() > 0.5;
     const timestamp = new Date(Date.now() - daysAgo * 24 * 60 * 60 * 1000);
+    const profitPredicted = 5000000 + Math.random() * 50000000;
+    const profitActual = hasImplemented ? profitPredicted * (0.8 + Math.random() * 0.4) : null;
 
     recommendationLogs.push({
-      recommendationId: `REC-${String(i + 1).padStart(7, '0')}`,
-      recommendation: `Recommendation ${i + 1} - Optimize operational efficiency`,
-      category: categories[Math.floor(Math.random() * categories.length)],
-      priority: priorities[Math.floor(Math.random() * priorities.length)],
-      justification: 'Based on historical data analysis and current trends',
-      contextData: {
-        source: 'AI_ANALYSIS',
-        dataPoints: Math.floor(Math.random() * 1000),
+      recommendationType: types[Math.floor(Math.random() * types.length)],
+      scenario: {
+        weather: ['SUNNY', 'CLOUDY', 'RAINY'][Math.floor(Math.random() * 3)],
+        shift: ['PAGI', 'SIANG', 'MALAM'][Math.floor(Math.random() * 3)],
+        targetProduction: Math.floor(Math.random() * 5000) + 3000,
+        truckAvailable: Math.floor(Math.random() * 15) + 5,
       },
-      estimatedImpact: status !== 'PENDING' ? 'Positive impact on efficiency' : null,
-      estimatedSavings: 5000000 + Math.random() * 50000000,
-      status,
-      executedBy: status === 'EXECUTED' ? executors[i % executors.length].id : null,
-      executedAt:
-        status === 'EXECUTED'
-          ? new Date(timestamp.getTime() + Math.random() * 10 * 24 * 60 * 60 * 1000)
+      recommendations: [
+        { rank: 1, strategy: 'Strategy A', score: 0.9 },
+        { rank: 2, strategy: 'Strategy B', score: 0.8 },
+        { rank: 3, strategy: 'Strategy C', score: 0.7 },
+      ],
+      selectedStrategy: hasImplemented ? Math.floor(Math.random() * 3) : null,
+      selectedStrategyId: hasImplemented ? `STRAT-${i}` : null,
+      implementedAt: hasImplemented
+        ? new Date(timestamp.getTime() + Math.random() * 5 * 24 * 60 * 60 * 1000)
+        : null,
+      implementedBy: hasImplemented ? executors[i % executors.length].id : null,
+      results: hasImplemented
+        ? {
+            production: Math.floor(Math.random() * 5000) + 3000,
+            efficiency: 0.8 + Math.random() * 0.15,
+          }
+        : null,
+      profitActual,
+      profitPredicted,
+      variance: profitActual ? ((profitActual - profitPredicted) / profitPredicted) * 100 : null,
+      feedback:
+        hasImplemented && Math.random() > 0.5
+          ? 'Good recommendation, implemented successfully'
           : null,
-      actualImpact: status === 'EXECUTED' ? 'Implemented successfully' : null,
-      effectiveness: status === 'EXECUTED' ? 0.6 + Math.random() * 0.35 : null,
-      timestamp,
     });
   }
 
@@ -605,37 +606,31 @@ export const seedRecommendationLogs = async (users) => {
 
 export const seedChatbotInteractions = async (users) => {
   const chatbotInteractions = [];
-  const queryIntents = [
-    'PRODUCTION_QUERY',
-    'EQUIPMENT_STATUS',
-    'FUEL_REPORT',
-    'DELAY_ANALYSIS',
-    'MAINTENANCE_SCHEDULE',
+  const questions = [
+    'What is the best strategy for rainy weather?',
+    'How can I optimize fuel consumption?',
+    'What shift has the highest production?',
+    'Show me truck maintenance schedule',
+    'How to reduce delay probability?',
   ];
-  const responseSources = ['DATABASE', 'ML_MODEL', 'RULE_ENGINE', 'HYBRID'];
 
   for (let i = 0; i < 600; i++) {
     const user = users[i % users.length];
     const hoursAgo = Math.floor(Math.random() * 720);
-    const responseTime = 0.5 + Math.random() * 2.5;
+    const responseTime = Math.floor((0.5 + Math.random() * 2.5) * 1000); // in milliseconds
 
     chatbotInteractions.push({
-      sessionId: `SESSION-${String(i + 1).padStart(7, '0')}`,
+      sessionId: `SESSION-${String(Math.floor(i / 5) + 1).padStart(7, '0')}`,
       userId: user.id,
-      userQuery: `Query ${i + 1} - Information request`,
-      queryIntent: queryIntents[Math.floor(Math.random() * queryIntents.length)],
-      retrievedContext: {
-        documents: Math.floor(Math.random() * 10) + 1,
-        relevance: 0.7 + Math.random() * 0.25,
+      userQuestion: questions[Math.floor(Math.random() * questions.length)],
+      aiResponse: `Based on the current operational data and historical patterns, I recommend ${Math.random() > 0.5 ? 'optimizing truck allocation' : 'adjusting shift schedules'} to improve efficiency.`,
+      context: {
+        weather: ['SUNNY', 'CLOUDY', 'RAINY'][Math.floor(Math.random() * 3)],
+        shift: ['PAGI', 'SIANG', 'MALAM'][Math.floor(Math.random() * 3)],
+        topStrategies: ['Strategy A', 'Strategy B', 'Strategy C'],
       },
-      sqlQuery: Math.random() > 0.5 ? 'SELECT * FROM hauling_activities WHERE ...' : null,
-      botResponse: `Response to query ${i + 1} with relevant information`,
-      responseSource: responseSources[Math.floor(Math.random() * responseSources.length)],
-      confidence: 0.7 + Math.random() * 0.25,
       responseTime,
-      tokensUsed: Math.floor(responseTime * 500),
-      userFeedback: Math.random() > 0.3 ? (Math.random() > 0.5 ? 'POSITIVE' : 'NEGATIVE') : null,
-      feedbackComment: Math.random() > 0.7 ? 'User feedback comment' : null,
+      rating: Math.random() > 0.3 ? Math.floor(Math.random() * 5) + 1 : null,
       timestamp: new Date(Date.now() - hoursAgo * 60 * 60 * 1000),
     });
   }

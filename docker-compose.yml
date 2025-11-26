@@ -1,0 +1,158 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: mining-postgres
+    restart: always
+    environment:
+      POSTGRES_DB: mining_dss
+      POSTGRES_USER: mining_user
+      POSTGRES_PASSWORD: mining_password_secure
+    ports:
+      - '5432:5432'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U mining_user -d mining_dss']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - mining-network
+
+  # Backend Express API
+  backend:
+    build:
+      context: ./backend-express
+      dockerfile: Dockerfile
+    container_name: mining-backend
+    restart: always
+    ports:
+      - '5000:5000'
+    environment:
+      NODE_ENV: production
+      PORT: 5000
+      DATABASE_URL: postgresql://mining_user:mining_password_secure@postgres:5432/mining_dss?schema=public
+      AI_SERVICE_URL: http://ai-service:8000
+      AI_SERVICE_TIMEOUT: 120000
+      JWT_SECRET: ${JWT_SECRET:-your_production_jwt_secret_change_this}
+      JWT_EXPIRES_IN: 7d
+    depends_on:
+      postgres:
+        condition: service_healthy
+      ai-service:
+        condition: service_started
+    volumes:
+      - ./backend-express/logs:/app/logs
+      - ./backend-express/exports:/app/exports
+    networks:
+      - mining-network
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:5000/health']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # AI/ML Service (FastAPI)
+  ai-service:
+    build:
+      context: ./mining-ops-ai-main
+      dockerfile: Dockerfile
+    container_name: mining-ai-service
+    restart: always
+    ports:
+      - '8000:8000'
+    environment:
+      HOST: 0.0.0.0
+      PORT: 8000
+      ENVIRONMENT: production
+      OLLAMA_HOST: http://ollama:11434
+      OLLAMA_MODEL: qwen2.5:7b
+    depends_on:
+      - ollama
+    volumes:
+      - ./mining-ops-ai-main/data:/app/data
+      - ./mining-ops-ai-main/models:/app/models
+      - ./mining-ops-ai-main/logs:/app/logs
+    networks:
+      - mining-network
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:8000/']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Ollama LLM Service
+  ollama:
+    image: ollama/ollama:latest
+    container_name: mining-ollama
+    restart: always
+    ports:
+      - '11434:11434'
+    volumes:
+      - ollama_data:/root/.ollama
+    networks:
+      - mining-network
+    # Note: Model needs to be pulled manually after first start:
+    # docker exec -it mining-ollama ollama pull qwen2.5:7b
+
+  # Frontend React App
+  frontend:
+    build:
+      context: ./mining-ops-frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE_URL: http://localhost:5000/api/v1
+    container_name: mining-frontend
+    restart: always
+    ports:
+      - '3000:80'
+    depends_on:
+      - backend
+    networks:
+      - mining-network
+
+  # Prometheus Monitoring
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: mining-prometheus
+    restart: always
+    ports:
+      - '9090:9090'
+    volumes:
+      - ./mining-ops-ai-main/monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+    networks:
+      - mining-network
+
+  # Grafana Monitoring Dashboard
+  grafana:
+    image: grafana/grafana:latest
+    container_name: mining-grafana
+    restart: always
+    ports:
+      - '3001:3000'
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin123
+    volumes:
+      - grafana_data:/var/lib/grafana
+    depends_on:
+      - prometheus
+    networks:
+      - mining-network
+
+volumes:
+  postgres_data:
+  ollama_data:
+  prometheus_data:
+  grafana_data:
+
+networks:
+  mining-network:
+    driver: bridge

@@ -19,9 +19,12 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   
-  operatorProfile    Operator?
-  haulingActivities  HaulingActivity[]
-  incidentReports    IncidentReport[]
+  operatorProfile       Operator?
+  haulingActivities     HaulingActivity[]
+  incidentReports       IncidentReport[]
+  chatbotInteractions   ChatbotInteraction[]
+  recommendationLogs    RecommendationLog[]
+  systemConfigUpdates   SystemConfig[]
   
   @@map("users")
 }
@@ -721,126 +724,6 @@ model EquipmentStatusLog {
   @@map("equipment_status_logs")
 }
 
-model PredictionLog {
-  id            String   @id @default(cuid())
-  predictionId  String   @unique
-  modelType     String
-  modelVersion  String?
-  
-  inputData     Json
-  
-  prediction    Json
-  confidence    Float?
-  
-  contextData   Json?
-  
-  actualOutcome Json?
-  isAccurate    Boolean?
-  
-  timestamp     DateTime @default(now())
-  
-  @@index([timestamp])
-  @@index([modelType])
-  @@map("prediction_logs")
-}
-
-model RecommendationLog {
-  id                String              @id @default(cuid())
-  recommendationId  String              @unique
-  
-  recommendation    String
-  category          RecommendationCategory
-  priority          Priority
-  
-  justification     String
-  contextData       Json?
-  
-  estimatedImpact   String?
-  estimatedSavings  Float?
-  
-  status            RecommendationStatus @default(PENDING)
-  executedBy        String?
-  executedAt        DateTime?
-  
-  actualImpact      String?
-  effectiveness     Float?
-  
-  remarks           String?
-  timestamp         DateTime            @default(now())
-  updatedAt         DateTime            @updatedAt
-  
-  @@index([timestamp])
-  @@index([status])
-  @@map("recommendation_logs")
-}
-
-enum RecommendationCategory {
-  ALLOCATION
-  MAINTENANCE
-  ROUTE_OPTIMIZATION
-  FUEL_EFFICIENCY
-  SAFETY
-  PRODUCTION
-  COST_REDUCTION
-}
-
-enum Priority {
-  LOW
-  MEDIUM
-  HIGH
-  URGENT
-}
-
-enum RecommendationStatus {
-  PENDING
-  EXECUTED
-  IGNORED
-  EXPIRED
-  CANCELLED
-}
-
-model ChatbotInteraction {
-  id              String   @id @default(cuid())
-  sessionId       String
-  userId          String?
-  
-  userQuery       String
-  queryIntent     String?
-  
-  retrievedContext Json?
-  sqlQuery        String?
-  
-  botResponse     String
-  responseSource  String?
-  confidence      Float?
-  
-  responseTime    Int?
-  tokensUsed      Int?
-  
-  userFeedback    String?
-  feedbackComment String?
-  
-  timestamp       DateTime @default(now())
-  
-  @@index([sessionId])
-  @@index([timestamp])
-  @@map("chatbot_interactions")
-}
-
-model SystemConfig {
-  id          String   @id @default(cuid())
-  configKey   String   @unique
-  configValue String
-  dataType    String
-  category    String
-  description String?
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  
-  @@map("system_configs")
-}
-
 // ===== Vessel / Shipping Models =====
 
 model Vessel {
@@ -1064,4 +947,107 @@ model BerthingLog {
   @@index([jettyBerthId])
   @@index([arrivalTime])
   @@map("berthing_logs")
+}
+
+// AI/ML Integration Models
+model PredictionLog {
+  id                String   @id @default(cuid())
+  predictionType    String   // 'STRATEGIC_RECOMMENDATION', 'FUEL_PREDICTION', 'LOAD_PREDICTION', 'DELAY_PREDICTION'
+  inputParameters   Json     // Parameters yang digunakan untuk prediksi
+  results           Json     // Hasil prediksi/rekomendasi
+  accuracy          Float?   // Akurasi model (jika tersedia)
+  executionTime     Int?     // Waktu eksekusi dalam milidetik
+  modelVersion      String?  // Versi model yang digunakan
+  timestamp         DateTime @default(now())
+  createdAt         DateTime @default(now())
+  
+  @@index([predictionType])
+  @@index([timestamp])
+  @@map("prediction_logs")
+}
+
+model ChatbotInteraction {
+  id              String   @id @default(cuid())
+  userId          String?
+  sessionId       String   // Untuk tracking sesi conversation
+  userQuestion    String   @db.Text
+  aiResponse      String   @db.Text
+  context         Json?    // Context yang digunakan (misal: top 3 strategies)
+  responseTime    Int?     // Waktu response dalam milidetik
+  rating          Int?     // User rating (1-5) untuk response
+  timestamp       DateTime @default(now())
+  createdAt       DateTime @default(now())
+  
+  user            User?    @relation(fields: [userId], references: [id])
+  
+  @@index([userId])
+  @@index([sessionId])
+  @@index([timestamp])
+  @@map("chatbot_interactions")
+}
+
+model RecommendationLog {
+  id                  String    @id @default(cuid())
+  recommendationType  String    // 'STRATEGIC', 'OPERATIONAL', 'MAINTENANCE'
+  scenario            Json      // Input scenario (weather, shift, targets, dll)
+  recommendations     Json      // Array of recommendations dengan ranking
+  selectedStrategy    Int?      // Index strategi yang dipilih user (0, 1, atau 2)
+  selectedStrategyId  String?   // ID strategi yang dipilih
+  implementedAt       DateTime? // Kapan strategi diimplementasikan
+  implementedBy       String?   // User yang mengimplementasikan
+  results             Json?     // Actual results setelah implementasi
+  profitActual        Float?    // Profit aktual vs prediksi
+  profitPredicted     Float?    // Profit yang diprediksi
+  variance            Float?    // Selisih actual vs predicted
+  feedback            String?   @db.Text
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+  
+  implementer         User?     @relation(fields: [implementedBy], references: [id])
+  
+  @@index([recommendationType])
+  @@index([createdAt])
+  @@index([implementedAt])
+  @@map("recommendation_logs")
+}
+
+model ModelTrainingLog {
+  id                String   @id @default(cuid())
+  modelType         String   // 'FUEL', 'LOAD', 'DELAY'
+  modelVersion      String   // Semantic versioning: 1.0.0, 1.1.0, dll
+  trainingDataSize  Int      // Jumlah data yang digunakan untuk training
+  trainingAccuracy  Float?   // Akurasi pada training set
+  validationAccuracy Float?  // Akurasi pada validation set
+  testAccuracy      Float?   // Akurasi pada test set
+  hyperparameters   Json?    // Hyperparameters yang digunakan
+  featureImportance Json?    // Feature importance dari model
+  trainedAt         DateTime @default(now())
+  trainedBy         String?  // User/system yang melakukan training
+  status            String   @default("ACTIVE") // ACTIVE, DEPRECATED, ARCHIVED
+  remarks           String?  @db.Text
+  createdAt         DateTime @default(now())
+  
+  @@index([modelType])
+  @@index([trainedAt])
+  @@index([status])
+  @@map("model_training_logs")
+}
+
+model SystemConfig {
+  id          String   @id @default(cuid())
+  configKey   String   @unique
+  configValue String   @db.Text
+  dataType    String   @default("STRING") // STRING, NUMBER, BOOLEAN, JSON
+  category    String   // AI_SERVICE, ML_PARAMETERS, FINANCIAL, OPERATIONAL
+  description String?  @db.Text
+  isActive    Boolean  @default(true)
+  updatedBy   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  updater     User?    @relation(fields: [updatedBy], references: [id])
+  
+  @@index([category])
+  @@index([isActive])
+  @@map("system_configs")
 }

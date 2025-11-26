@@ -1,0 +1,92 @@
+import React from 'react';
+
+const RealtimeStatus = ({ data }) => {
+  if (!data) return null;
+
+  const { weather, operational, upcomingSchedules } = data;
+
+  const getWeatherIcon = (condition) => {
+    switch (condition?.toLowerCase()) {
+      case 'cerah':
+        return '☀️';
+      case 'hujan ringan':
+        return '🌦️';
+      case 'hujan lebat':
+        return '🌧️';
+      default:
+        return '🌤️';
+    }
+  };
+
+  return (
+    <div className="bg-white rounded-lg shadow-md p-6 mb-6">
+      <h2 className="text-xl font-semibold mb-4 flex items-center">
+        <span className="mr-2">📊</span>
+        Real-time Operational Status
+      </h2>
+
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+        {/* Weather */}
+        <div className="bg-blue-50 p-4 rounded-lg">
+          <div className="text-3xl mb-2">{getWeatherIcon(weather?.condition)}</div>
+          <h3 className="font-semibold text-gray-700">Weather</h3>
+          <p className="text-sm text-gray-600">{weather?.condition || 'N/A'}</p>
+          {weather?.temperature && <p className="text-xs text-gray-500">{weather.temperature}°C</p>}
+        </div>
+
+        {/* Active Hauling */}
+        <div className="bg-green-50 p-4 rounded-lg">
+          <div className="text-3xl mb-2">🚛</div>
+          <h3 className="font-semibold text-gray-700">Active Hauling</h3>
+          <p className="text-2xl font-bold text-green-600">{operational?.activeHauling || 0}</p>
+        </div>
+
+        {/* Available Trucks */}
+        <div className="bg-yellow-50 p-4 rounded-lg">
+          <div className="text-3xl mb-2">🔧</div>
+          <h3 className="font-semibold text-gray-700">Trucks Available</h3>
+          <p className="text-2xl font-bold text-yellow-600">
+            {operational?.availableTrucks || 0}/{operational?.totalTrucks || 0}
+          </p>
+        </div>
+
+        {/* Available Excavators */}
+        <div className="bg-purple-50 p-4 rounded-lg">
+          <div className="text-3xl mb-2">⛏️</div>
+          <h3 className="font-semibold text-gray-700">Excavators Ready</h3>
+          <p className="text-2xl font-bold text-purple-600">
+            {operational?.availableExcavators || 0}/{operational?.totalExcavators || 0}
+          </p>
+        </div>
+
+        {/* Today's Production */}
+        <div className="bg-indigo-50 p-4 rounded-lg">
+          <div className="text-3xl mb-2">📦</div>
+          <h3 className="font-semibold text-gray-700">Today's Production</h3>
+          <p className="text-lg font-bold text-indigo-600">{(operational?.todayProduction || 0).toLocaleString()} T</p>
+        </div>
+      </div>
+
+      {/* Upcoming Schedules */}
+      {upcomingSchedules && upcomingSchedules.length > 0 && (
+        <div className="mt-6 border-t pt-4">
+          <h3 className="font-semibold text-gray-700 mb-3">🚢 Upcoming Sailing Schedules ({upcomingSchedules.length})</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+            {upcomingSchedules.slice(0, 3).map((schedule, index) => (
+              <div key={index} className="bg-gray-50 p-3 rounded border border-gray-200">
+                <div className="font-medium text-sm">{schedule.vessel?.name}</div>
+                <div className="text-xs text-gray-600 mt-1">Deadline: {new Date(schedule.etsLoading).toLocaleDateString()}</div>
+                <div className="text-xs text-gray-600">Target: {schedule.plannedQuantity?.toLocaleString()} T</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Last Updated */}
+      <div className="mt-4 text-xs text-gray-500 text-right">Last updated: {new Date(data.timestamp).toLocaleTimeString()}</div>
+    </div>
+  );
+};
+
+export default RealtimeStatus;

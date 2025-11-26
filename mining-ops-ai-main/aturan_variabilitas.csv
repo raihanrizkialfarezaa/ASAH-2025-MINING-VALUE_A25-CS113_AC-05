@@ -1,0 +1,7 @@
+kondisi,cuaca,variabilitas_waktu_persen
+BAIK,CERAH,5
+BAIK,HUJAN,15
+SEDANG,CERAH,10
+SEDANG,HUJAN,25
+BURUK,CERAH,20
+BURUK,HUJAN,40

@@ -1,0 +1,150 @@
+import api from '../config/api';
+
+/**
+ * AI Service - Frontend integration dengan Backend AI endpoints
+ */
+class AIService {
+  /**
+   * Check AI service health
+   */
+  async checkHealth() {
+    try {
+      const response = await api.get('/ai/health');
+      return response.data;
+    } catch (error) {
+      console.error('AI health check failed:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get real-time operational conditions
+   */
+  async getRealtimeConditions() {
+    try {
+      const response = await api.get('/ai/realtime-conditions');
+      return response.data;
+    } catch (error) {
+      console.error('Failed to get realtime conditions:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get strategic recommendations from AI
+   * @param {Object} params - Recommendation parameters
+   */
+  async getRecommendations(params) {
+    try {
+      const response = await api.post('/ai/recommendations', params);
+      return response.data;
+    } catch (error) {
+      console.error('Failed to get recommendations:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Save selected recommendation
+   * @param {Object} data - Recommendation data to save
+   */
+  async saveRecommendation(data) {
+    try {
+      const response = await api.post('/ai/recommendations/save', data);
+      return response.data;
+    } catch (error) {
+      console.error('Failed to save recommendation:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Update recommendation with actual results
+   * @param {string} id - Recommendation log ID
+   * @param {Object} results - Actual results
+   */
+  async updateRecommendationResults(id, results) {
+    try {
+      const response = await api.put(`/ai/recommendations/${id}/results`, results);
+      return response.data;
+    } catch (error) {
+      console.error('Failed to update recommendation results:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Ask chatbot a question
+   * @param {string} question - User's question
+   * @param {Array} context - Context data (strategies, etc.)
+   */
+  async askChatbot(question, context = []) {
+    try {
+      const response = await api.post('/ai/chatbot', {
+        question,
+        context,
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Chatbot request failed:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get chatbot interaction history
+   * @param {Object} filters - Query filters
+   */
+  async getChatbotHistory(filters = {}) {
+    try {
+      const response = await api.get('/ai/chatbot/history', { params: filters });
+      return response.data;
+    } catch (error) {
+      console.error('Failed to get chatbot history:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get prediction history
+   * @param {Object} filters - Query filters
+   */
+  async getPredictionHistory(filters = {}) {
+    try {
+      const response = await api.get('/ai/predictions/history', { params: filters });
+      return response.data;
+    } catch (error) {
+      console.error('Failed to get prediction history:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get recommendation analytics
+   */
+  async getAnalytics() {
+    try {
+      const response = await api.get('/ai/analytics');
+      return response.data;
+    } catch (error) {
+      console.error('Failed to get analytics:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Export training data (Admin only)
+   * @param {number} limit - Maximum records to export
+   */
+  async exportTrainingData(limit = 10000) {
+    try {
+      const response = await api.post('/ai/export-training-data', { limit });
+      return response.data;
+    } catch (error) {
+      console.error('Failed to export training data:', error);
+      throw error;
+    }
+  }
+}
+
+export default new AIService();

@@ -54,7 +54,7 @@ try:
         # Hapus jadwal yang tanggalnya rusak (NaT) agar tidak merusak perhitungan nanti
         invalid_count = DB_SCHEDULES['etsLoading'].isna().sum()
         if invalid_count > 0:
-            print(f"   ⚠️ Warning: Ditemukan {invalid_count} jadwal dengan tanggal invalid (diabaikan).")
+            print(f"   [WARNING] Ditemukan {invalid_count} jadwal dengan tanggal invalid (diabaikan).")
             DB_SCHEDULES = DB_SCHEDULES.dropna(subset=['etsLoading'])
             
         print(f"   > Schedules: {len(DB_SCHEDULES)} jadwal valid dimuat.")
@@ -64,7 +64,7 @@ try:
         except:
             DB_VESSELS = pd.DataFrame()
     except Exception as e:
-        print(f"   ⚠️ Warning: Gagal memuat data kapal ({e})")
+        print(f"   [WARNING] Gagal memuat data kapal ({e})")
         DB_SCHEDULES = pd.DataFrame()
 
     # Muat Log Maintenance
@@ -83,16 +83,20 @@ try:
     MODEL_COLUMNS = NUM_COLS + CAT_COLS
     
     print(f"3. Menghubungkan Ollama...")
+    # Default fallback jika Ollama tidak tersedia
+    OLLAMA_MODEL = "qwen2.5:7b"  # Model yang sudah di-pull
     try:
         ollama.list()
-        LLM_PROVIDER, OLLAMA_MODEL = "ollama", "llama3:8b" # Bisa diganti qwen2.5:7b
-        print("✅ SISTEM SIAP.")
+        LLM_PROVIDER = "ollama"
+        print("[OK] OLLAMA TERHUBUNG - SISTEM SIAP.")
     except:
-        print("⚠️ OLLAMA TIDAK TERHUBUNG.")
+        print("[WARNING] OLLAMA TIDAK TERHUBUNG.")
         LLM_PROVIDER = None
     
 except Exception as e:
-    print(f"❌ GAGAL MEMUAT SYSTEM: {e}")
+    print(f"[ERROR] GAGAL MEMUAT SYSTEM: {e}")
+    LLM_PROVIDER = None
+    OLLAMA_MODEL = "qwen2.5:7b"  # Fallback jika error
     LLM_PROVIDER = None
 
 # --- 2. LOGIKA SIMULASI ---
@@ -331,8 +335,8 @@ def run_hybrid_simulation(skenario, financial_params, duration_hours=24):
 
 def get_operational_guidelines(weather, road_cond, total_trucks, total_excavators):
     guidelines = []
-    if "Hujan" in str(weather): guidelines.append("⚠️ SLIPPERY: Batasi kecepatan 20 km/jam")
-    if total_trucks/total_excavators > 5: guidelines.append("🔄 TRAFIK: Aktifkan Waiting Bay")
+    if "Hujan" in str(weather): guidelines.append("[WARNING] SLIPPERY: Batasi kecepatan 20 km/jam")
+    if total_trucks/total_excavators > 5: guidelines.append("[INFO] TRAFIK: Aktifkan Waiting Bay")
     return guidelines
 
 def format_konteks_for_llm(top_3_list):
