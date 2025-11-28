@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Truck, Construction, Users, MapPin, Package, Wrench, CloudRain, BarChart3, Settings, LogOut, Menu, X } from 'lucide-react';
+import { LayoutDashboard, Truck, Construction, Users, MapPin, Package, Wrench, CloudRain, BarChart3, Settings, LogOut, Menu, X, Bot } from 'lucide-react';
 import { authService } from '../../services/authService';
 
 const Layout = ({ children }) => {
@@ -11,6 +11,7 @@ const Layout = ({ children }) => {
 
   const menuItems = [
     { path: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
+    { path: '/ai-recommendations', icon: Bot, label: 'AI Recommendations' },
     { path: '/trucks', icon: Truck, label: 'Trucks' },
     { path: '/vessels', icon: Package, label: 'Vessels' },
     { path: '/excavators', icon: Construction, label: 'Excavators' },

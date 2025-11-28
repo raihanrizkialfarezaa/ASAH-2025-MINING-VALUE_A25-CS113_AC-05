@@ -17,7 +17,6 @@ const ChatbotWidget = ({ context, aiServiceStatus }) => {
   }, [messages]);
 
   useEffect(() => {
-    // Welcome message when chatbot is opened for first time
     if (isOpen && messages.length === 0) {
       setMessages([
         {
@@ -27,7 +26,7 @@ const ChatbotWidget = ({ context, aiServiceStatus }) => {
         },
       ]);
     }
-  }, [isOpen]);
+  }, [isOpen, messages.length]);
 
   const handleSend = async () => {
     if (!input.trim() || loading) return;
@@ -52,7 +51,7 @@ const ChatbotWidget = ({ context, aiServiceStatus }) => {
 
       const aiMessage = {
         role: 'assistant',
-        content: response.data.jawaban || response.data.answer || 'I apologize, but I could not generate a response.',
+        content: response.data.jawaban_ai || response.data.answer || 'I apologize, but I could not generate a response.',
         timestamp: new Date(),
       };
 

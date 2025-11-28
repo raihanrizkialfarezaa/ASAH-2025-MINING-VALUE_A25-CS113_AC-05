@@ -1,6 +1,0 @@
-rute_id,loading_point,dumping_point,jarak_km,kondisi_jalan
-ROUTE-001,LP-A,DP-1,5.2,BAIK
-ROUTE-002,LP-A,DP-2,7.8,SEDANG
-ROUTE-003,LP-B,DP-1,6.5,BAIK
-ROUTE-004,LP-B,DP-2,4.3,SEDANG
-ROUTE-005,LP-C,DP-1,8.1,BURUK

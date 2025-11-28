@@ -1,6 +1,0 @@
-truck_id,kapasitas_ton,konsumsi_bbm_liter_per_km,status
-TRUCK-001,50,0.8,ACTIVE
-TRUCK-002,50,0.85,ACTIVE
-TRUCK-003,45,0.75,ACTIVE
-TRUCK-004,50,0.8,ACTIVE
-TRUCK-005,45,0.78,ACTIVE

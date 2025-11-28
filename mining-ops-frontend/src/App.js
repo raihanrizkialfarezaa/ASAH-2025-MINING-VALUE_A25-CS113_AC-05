@@ -14,6 +14,7 @@ import MaintenanceList from './pages/maintenance/MaintenanceList';
 import WeatherList from './pages/weather/WeatherList';
 import ProductionList from './pages/production/ProductionList';
 import UserList from './pages/users/UserList';
+import AIRecommendations from './pages/AI/AIRecommendations';
 
 const PrivateRoute = ({ children }) => {
   const isAuthenticated = authService.isAuthenticated();
@@ -42,6 +43,7 @@ function App() {
                   <Route path="/weather" element={<WeatherList />} />
                   <Route path="/production" element={<ProductionList />} />
                   <Route path="/users" element={<UserList />} />
+                  <Route path="/ai-recommendations" element={<AIRecommendations />} />
                   <Route path="/" element={<Navigate to="/dashboard" />} />
                 </Routes>
               </Layout>

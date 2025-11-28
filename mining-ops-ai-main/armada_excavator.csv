@@ -1,5 +1,0 @@
-excavator_id,kapasitas_bucket_ton,konsumsi_bbm_liter_per_jam,waktu_muat_per_truck_menit,status
-EXC-001,3.5,25,8,ACTIVE
-EXC-002,4.0,28,7,ACTIVE
-EXC-003,3.5,26,8,ACTIVE
-EXC-004,4.0,27,7.5,ACTIVE

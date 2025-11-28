@@ -18,6 +18,7 @@ const AIRecommendations = () => {
     // Refresh realtime data every 30 seconds
     const interval = setInterval(loadRealtimeData, 30000);
     return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const loadInitialData = async () => {
@@ -201,8 +202,8 @@ const AIRecommendations = () => {
         </div>
       )}
 
-      {/* Chatbot Widget (only show when recommendations available) */}
-      {recommendations && <ChatbotWidget context={recommendations} aiServiceStatus={aiServiceHealth?.status} />}
+      {/* Chatbot Widget - Always visible */}
+      <ChatbotWidget context={recommendations} aiServiceStatus={aiServiceHealth?.status} />
     </div>
   );
 };

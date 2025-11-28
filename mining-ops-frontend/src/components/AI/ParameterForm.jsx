@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import excavatorService from '../../services/excavatorService';
 import vesselService from '../../services/vesselService';
+import roadSegmentService from '../../services/roadSegmentService';
 
 const ParameterForm = ({ onSubmit, realtimeData, loading }) => {
   const [formData, setFormData] = useState({
@@ -44,13 +45,20 @@ const ParameterForm = ({ onSubmit, realtimeData, loading }) => {
 
   const loadFormOptions = async () => {
     try {
-      const [excavatorRes, scheduleRes] = await Promise.all([excavatorService.getAll({ status: 'OPERATIONAL' }), vesselService.getAllSchedules({ status: 'SCHEDULED' })]);
+      const [excavatorRes, scheduleRes, roadRes] = await Promise.all([
+        excavatorService.getAll({ isActive: true, limit: 100 }),
+        vesselService.getAllSchedules({ status: 'SCHEDULED', limit: 100 }),
+        roadSegmentService.getAll({ isActive: true, limit: 100 }),
+      ]);
 
       if (excavatorRes.data?.data) {
         setExcavators(excavatorRes.data.data);
       }
       if (scheduleRes.data?.data) {
         setSchedules(scheduleRes.data.data);
+      }
+      if (roadRes.data?.data) {
+        setRoadSegments(roadRes.data.data);
       }
     } catch (error) {
       console.error('Failed to load form options:', error);
