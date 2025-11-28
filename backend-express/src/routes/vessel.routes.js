@@ -15,6 +15,7 @@ const router = express.Router();
 router.use(authenticate);
 
 router.get('/', getVesselsQueryValidator, validate, vesselController.getAll);
+router.get('/schedules', vesselController.getAllSchedules);
 router.get('/:id', getVesselByIdValidator, validate, vesselController.getById);
 router.post(
   '/',

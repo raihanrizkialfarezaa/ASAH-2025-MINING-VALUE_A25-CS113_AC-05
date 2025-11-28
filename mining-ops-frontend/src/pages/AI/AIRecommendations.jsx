@@ -42,7 +42,9 @@ const AIRecommendations = () => {
   const loadRealtimeData = async () => {
     try {
       const response = await aiService.getRealtimeConditions();
-      setRealtimeData(response.data);
+      if (response.success && response.data) {
+        setRealtimeData(response.data);
+      }
     } catch (error) {
       console.error('Failed to load realtime data:', error);
     }

@@ -27,4 +27,9 @@ export const vesselController = {
     const result = await vesselService.delete(req.params.id);
     res.json(ApiResponse.success(result));
   }),
+
+  getAllSchedules: catchAsync(async (req, res) => {
+    const result = await vesselService.getAllSchedules(req.query);
+    res.json(ApiResponse.paginated(result.schedules, result.pagination));
+  }),
 };

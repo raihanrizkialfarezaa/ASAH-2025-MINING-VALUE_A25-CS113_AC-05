@@ -48,10 +48,13 @@ const ChatbotWidget = ({ context, aiServiceStatus }) => {
 
     try {
       const response = await aiService.askChatbot(input, context);
+      console.log('Chatbot response:', response);
+
+      const answer = response.data?.jawaban_ai || response.data?.answer || response.jawaban_ai || 'I apologize, but I could not generate a response.';
 
       const aiMessage = {
         role: 'assistant',
-        content: response.data.jawaban_ai || response.data.answer || 'I apologize, but I could not generate a response.',
+        content: answer,
         timestamp: new Date(),
       };
 

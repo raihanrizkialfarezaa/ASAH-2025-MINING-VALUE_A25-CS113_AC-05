@@ -9,17 +9,19 @@ DATA_FOLDER = 'data'
 warnings.simplefilter(action='ignore', category=FutureWarning)
 warnings.simplefilter(action='ignore', category=pd.errors.PerformanceWarning)
 
+from data_loader import load_data
+
 print("--- Memulai Fase 1: Membuat Data Latih (Merging) ---")
 
 try:
     # --- 1. Muat Semua Tabel ---
-    print(f"Memuat 6 tabel utama dari folder '{DATA_FOLDER}'...")
-    hauling = pd.read_csv(os.path.join(DATA_FOLDER, 'hauling_activities.csv'))
-    trucks = pd.read_csv(os.path.join(DATA_FOLDER, 'trucks.csv'))
-    excavators = pd.read_csv(os.path.join(DATA_FOLDER, 'excavators.csv'))
-    operators = pd.read_csv(os.path.join(DATA_FOLDER, 'operators.csv'))
-    roads = pd.read_csv(os.path.join(DATA_FOLDER, 'road_segments.csv'))
-    maintenance = pd.read_csv(os.path.join(DATA_FOLDER, 'maintenance_logs.csv'))
+    print(f"Memuat 6 tabel utama...")
+    hauling = load_data('hauling_activities', 'hauling_activities.csv')
+    trucks = load_data('trucks', 'trucks.csv')
+    excavators = load_data('excavators', 'excavators.csv')
+    operators = load_data('operators', 'operators.csv')
+    roads = load_data('road_segments', 'road_segments.csv')
+    maintenance = load_data('maintenance_logs', 'maintenance_logs.csv')
 
     # --- 2. Bersihkan & Gabungkan (Join) Tabel ---
     print("Menggabungkan tabel (joining)...")

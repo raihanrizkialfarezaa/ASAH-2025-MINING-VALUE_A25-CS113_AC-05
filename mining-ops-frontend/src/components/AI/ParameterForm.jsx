@@ -27,10 +27,6 @@ const ParameterForm = ({ onSubmit, realtimeData, loading }) => {
   useEffect(() => {
     if (realtimeData) {
       // Auto-populate from realtime data
-      if (realtimeData.resources) {
-        setExcavators(realtimeData.resources.excavators || []);
-        setRoadSegments(realtimeData.resources.roadSegments || []);
-      }
       if (realtimeData.upcomingSchedules) {
         setSchedules(realtimeData.upcomingSchedules);
       }
@@ -51,14 +47,14 @@ const ParameterForm = ({ onSubmit, realtimeData, loading }) => {
         roadSegmentService.getAll({ isActive: true, limit: 100 }),
       ]);
 
-      if (excavatorRes.data?.data) {
-        setExcavators(excavatorRes.data.data);
+      if (excavatorRes.success && excavatorRes.data) {
+        setExcavators(excavatorRes.data);
       }
-      if (scheduleRes.data?.data) {
-        setSchedules(scheduleRes.data.data);
+      if (scheduleRes.success && scheduleRes.data) {
+        setSchedules(scheduleRes.data);
       }
-      if (roadRes.data?.data) {
-        setRoadSegments(roadRes.data.data);
+      if (roadRes.success && roadRes.data) {
+        setRoadSegments(roadRes.data);
       }
     } catch (error) {
       console.error('Failed to load form options:', error);

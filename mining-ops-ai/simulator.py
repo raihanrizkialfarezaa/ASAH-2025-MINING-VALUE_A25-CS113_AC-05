@@ -30,20 +30,22 @@ def format_currency(value):
     elif value >= 1_000_000: return f"{value/1_000_000:.0f} Juta IDR"
     else: return f"{value:,.0f} IDR"
 
+from data_loader import load_data
+
 # --- 1. LOAD DATA GLOBAL ---
 print("\n--- MEMUAT SISTEM (FINAL VERSION v3.0) ---")
 CONFIG = load_config()
 
 try:
-    print(f"1. Memuat Database dari '{DATA_FOLDER}'...")
-    DB_TRUCKS = pd.read_csv(os.path.join(DATA_FOLDER, 'trucks.csv')).set_index('id')
-    DB_EXCAVATORS = pd.read_csv(os.path.join(DATA_FOLDER, 'excavators.csv')).set_index('id')
-    DB_OPERATORS = pd.read_csv(os.path.join(DATA_FOLDER, 'operators.csv')).set_index('id')
-    DB_ROADS = pd.read_csv(os.path.join(DATA_FOLDER, 'road_segments.csv')).set_index('id')
+    print(f"1. Memuat Database...")
+    DB_TRUCKS = load_data('trucks', 'trucks.csv').set_index('id')
+    DB_EXCAVATORS = load_data('excavators', 'excavators.csv').set_index('id')
+    DB_OPERATORS = load_data('operators', 'operators.csv').set_index('id')
+    DB_ROADS = load_data('road_segments', 'road_segments.csv').set_index('id')
     
     # Muat Jadwal Kapal
     try:
-        DB_SCHEDULES = pd.read_csv(os.path.join(DATA_FOLDER, 'sailing_schedules.csv')).set_index('id')
+        DB_SCHEDULES = load_data('sailing_schedules', 'sailing_schedules.csv').set_index('id')
  
         DB_SCHEDULES['etsLoading'] = pd.to_datetime(
             DB_SCHEDULES['etsLoading'], 

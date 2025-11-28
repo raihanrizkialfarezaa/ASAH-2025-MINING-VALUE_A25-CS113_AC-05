@@ -29,6 +29,8 @@ except Exception as e:
     print(f"❌ ERROR saat inisialisasi simulator: {e}")
     exit()
 
+from chatbot import execute_and_summarize
+
 # --- 2. INISIALISASI APLIKASI API ---
 app = FastAPI(
     title="Mining Ops AI API",
@@ -76,7 +78,7 @@ class RecommendationRequest(BaseModel):
 class ChatRequest(BaseModel):
     """Payload untuk Endpoint Chatbot"""
     pertanyaan_user: str
-    top_3_strategies_context: List[Dict[str, Any]] 
+    top_3_strategies_context: Optional[List[Dict[str, Any]]] = None
 
 # Model untuk Menambah Data Baru (Kapal/Jadwal)
 class NewVessel(BaseModel):
@@ -144,7 +146,7 @@ async def dapatkan_rekomendasi_strategis(request: RecommendationRequest):
 async def tanya_jawab_chatbot(request: ChatRequest):
     """
     ENDPOINT 2: AGEN CHATBOT (Ollama Local)
-    Menjawab pertanyaan user berdasarkan konteks 3 strategi terbaik.
+    Menjawab pertanyaan user berdasarkan konteks 3 strategi terbaik ATAU data database.
     """
     
     # Cek koneksi Ollama
@@ -154,44 +156,49 @@ async def tanya_jawab_chatbot(request: ChatRequest):
     try:
         print(f"💬 Menerima pertanyaan chatbot: {request.pertanyaan_user}")
 
-        # 1. Format data ulang untuk prompt (memastikan struktur string json rapi)
-        # Karena request.top_3_strategies_context sudah berupa list dict dari frontend,
-        # kita dump kembali ke string JSON agar bisa dimasukkan ke prompt teks.
-        data_konteks_string = json.dumps(request.top_3_strategies_context, indent=2)
-        
-        # 2. System Prompt (Persona KTT)
-        system_prompt = f"""
-        !!! PERINTAH UTAMA: RESPONS ANDA HARUS SELALU DALAM BAHASA INDONESIA. !!!
-        
-        PERAN ANDA:
-        Anda adalah KEPALA TEKNIK TAMBANG (KTT) senior yang berpengalaman.
-        Tugas Anda adalah menjawab pertanyaan user mengenai 3 STRATEGI TERBAIK yang datanya diberikan di bawah ini.
+        # KASUS 1: Jika ada konteks strategi (User bertanya tentang hasil simulasi)
+        if request.top_3_strategies_context and len(request.top_3_strategies_context) > 0:
+            # 1. Format data ulang untuk prompt
+            data_konteks_string = json.dumps(request.top_3_strategies_context, indent=2)
+            
+            # 2. System Prompt (Persona KTT)
+            system_prompt = f"""
+            !!! PERINTAH UTAMA: RESPONS ANDA HARUS SELALU DALAM BAHASA INDONESIA. !!!
+            
+            PERAN ANDA:
+            Anda adalah KEPALA TEKNIK TAMBANG (KTT) senior yang berpengalaman.
+            Tugas Anda adalah menjawab pertanyaan user mengenai 3 STRATEGI TERBAIK yang datanya diberikan di bawah ini.
 
-        DATA 3 STRATEGI TERBAIK (JSON):
-        {data_konteks_string}
-        
-        ATURAN MENJAWAB:
-        1. Jawab HANYA berdasarkan data konteks di atas. Jangan halusinasi.
-        2. Fokus jawaban Anda pada 3 strategi ini saja.
-        3. Gunakan istilah 'ESTIMASI_PROFIT', 'FUEL_RATIO' (L/Ton), dan 'IDLE_ANTRIAN'.
-        4. Jika ditanya rekomendasi, jelaskan trade-off antara Profit vs Efisiensi/Antrian.
-        5. Gunakan Bahasa Indonesia yang profesional, tegas, dan teknis.
-        """
-        
-        # 3. Kirim ke Ollama (Stateless Request)
-        messages_for_ollama = [
-            {'role': 'system', 'content': system_prompt},
-            {'role': 'user', 'content': request.pertanyaan_user}
-        ]
-        
-        response = ollama.chat(
-            model=OLLAMA_MODEL, 
-            messages=messages_for_ollama
-        )
-        
-        jawaban_ai = response['message']['content']
-        
-        return {"jawaban_ai": jawaban_ai}
+            DATA 3 STRATEGI TERBAIK (JSON):
+            {data_konteks_string}
+            
+            ATURAN MENJAWAB:
+            1. Jawab HANYA berdasarkan data konteks di atas. Jangan halusinasi.
+            2. Fokus jawaban Anda pada 3 strategi ini saja.
+            3. Gunakan istilah 'ESTIMASI_PROFIT', 'FUEL_RATIO' (L/Ton), dan 'IDLE_ANTRIAN'.
+            4. Jika ditanya rekomendasi, jelaskan trade-off antara Profit vs Efisiensi/Antrian.
+            5. Gunakan Bahasa Indonesia yang profesional, tegas, dan teknis.
+            """
+            
+            # 3. Kirim ke Ollama
+            messages_for_ollama = [
+                {'role': 'system', 'content': system_prompt},
+                {'role': 'user', 'content': request.pertanyaan_user}
+            ]
+            
+            response = ollama.chat(
+                model=OLLAMA_MODEL, 
+                messages=messages_for_ollama
+            )
+            
+            jawaban_ai = response['message']['content']
+            return {"jawaban_ai": jawaban_ai}
+            
+        # KASUS 2: Jika TIDAK ada konteks strategi (User bertanya umum / data database)
+        else:
+            print("   ℹ️ Mode: Query Database (Text-to-SQL)")
+            jawaban_ai = execute_and_summarize(request.pertanyaan_user)
+            return {"jawaban_ai": jawaban_ai}
 
     except Exception as e:
         # Handle jika Ollama mati mendadak

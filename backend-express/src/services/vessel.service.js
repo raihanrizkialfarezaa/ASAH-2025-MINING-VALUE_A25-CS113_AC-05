@@ -57,4 +57,25 @@ export const vesselService = {
     await prisma.vessel.delete({ where: { id } });
     return { message: 'Vessel deleted successfully' };
   },
+
+  async getAllSchedules(query) {
+    const { page, limit, skip } = getPaginationParams(query);
+    const where = {};
+
+    if (query.status) where.status = query.status;
+    if (query.vesselId) where.vesselId = query.vesselId;
+
+    const [schedules, total] = await Promise.all([
+      prisma.sailingSchedule.findMany({
+        where,
+        skip,
+        take: limit,
+        include: { vessel: true },
+        orderBy: { etsLoading: 'asc' },
+      }),
+      prisma.sailingSchedule.count({ where }),
+    ]);
+
+    return { schedules, pagination: calculatePagination(page, limit, total) };
+  },
 };
