@@ -59,7 +59,31 @@ const AIRecommendations = () => {
       const result = await aiService.getRecommendations(params);
 
       if (result.success && result.data.top_3_strategies) {
-        setRecommendations(result.data.top_3_strategies);
+        // Map backend response format (OPSI_X) to frontend expected format
+        const mappedRecommendations = result.data.top_3_strategies
+          .map((item, index) => {
+            const key = Object.keys(item).find((k) => k.startsWith('OPSI_'));
+            const data = item[key];
+
+            if (!data) return null;
+
+            return {
+              skenario: {
+                alokasi_truk: data.INSTRUKSI_FLAT?.JUMLAH_DUMP_TRUCK || 'N/A',
+                jumlah_excavator: data.INSTRUKSI_FLAT?.JUMLAH_EXCAVATOR || 'N/A',
+              },
+              profit_display: data.KPI_PREDIKSI?.PROFIT || 'N/A',
+              total_tonase_display: data.KPI_PREDIKSI?.PRODUKSI || 'N/A',
+              total_bbm_display: data.KPI_PREDIKSI?.FUEL_RATIO || 'N/A',
+              cycle_time_avg_display: data.KPI_PREDIKSI?.ESTIMASI_DURASI || 'N/A',
+              efisiensi_display: data.KPI_PREDIKSI?.IDLE_ANTRIAN || 'N/A',
+              delay_probability_avg: 0,
+              insight: `${data.ANALISIS_KAPAL || ''} ${data.SOP_KESELAMATAN || ''}`.trim(),
+            };
+          })
+          .filter(Boolean);
+
+        setRecommendations(mappedRecommendations);
         toast.success('Recommendations generated successfully!');
       } else {
         toast.error('No recommendations returned');
