@@ -404,11 +404,37 @@ const TruckList = () => {
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <div className="flex-1 flex items-center space-x-3">
-              <div className="relative flex-1 max-w-md">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
-                <input type="text" placeholder="Search by code, name, brand, or model..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="input-field pl-10 pr-10 w-full" />
+              <div className="relative" style={{ minWidth: '320px', maxWidth: '450px', flex: '1' }}>
+                <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-500" size={20} />
+                <input
+                  type="text"
+                  placeholder="Search by code, name, brand, or model..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  style={{
+                    width: '100%',
+                    height: '44px',
+                    paddingLeft: '44px',
+                    paddingRight: '44px',
+                    fontSize: '14px',
+                    color: '#1f2937',
+                    backgroundColor: '#ffffff',
+                    border: '1px solid #d1d5db',
+                    borderRadius: '8px',
+                    outline: 'none',
+                    boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
+                  }}
+                  onFocus={(e) => {
+                    e.target.style.borderColor = '#3b82f6';
+                    e.target.style.boxShadow = '0 0 0 3px rgba(59,130,246,0.1)';
+                  }}
+                  onBlur={(e) => {
+                    e.target.style.borderColor = '#d1d5db';
+                    e.target.style.boxShadow = '0 1px 2px rgba(0,0,0,0.05)';
+                  }}
+                />
                 {searchQuery && (
-                  <button onClick={() => setSearchQuery('')} className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                  <button onClick={() => setSearchQuery('')} className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600">
                     <X size={18} />
                   </button>
                 )}
