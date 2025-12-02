@@ -111,6 +111,21 @@ export const dashboardService = {
     const response = await apiClient.get('/dashboard/analytics', { params });
     return response.data;
   },
+
+  getEquipmentUtilization: async (params) => {
+    const response = await apiClient.get('/dashboard/equipment-utilization', { params });
+    return response.data;
+  },
+
+  getDelayAnalysis: async (params) => {
+    const response = await apiClient.get('/dashboard/delay-analysis', { params });
+    return response.data;
+  },
+
+  getMaintenanceOverview: async () => {
+    const response = await apiClient.get('/dashboard/maintenance-overview');
+    return response.data;
+  },
 };
 
 export const userService = {
