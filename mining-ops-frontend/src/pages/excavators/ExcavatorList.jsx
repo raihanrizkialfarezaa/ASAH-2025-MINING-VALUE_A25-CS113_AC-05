@@ -302,7 +302,7 @@ const ExcavatorList = () => {
       currentLocation: defaultLoc.name,
       remarks: '',
     });
-    setLocationType((prev) => (prev || 'ALL'));
+    setLocationType((prev) => prev || 'ALL');
     setSelectedLocationId((prev) => prev || '');
     setShowModal(true);
   };
@@ -1121,7 +1121,16 @@ const ExcavatorList = () => {
                         <option value="LOADING">Loading Point</option>
                         <option value="DUMPING">Dumping Point</option>
                       </select>
-                      <select value={selectedLocationId} onChange={(e) => { const id = e.target.value; setSelectedLocationId(id); const item = locationOptions.find((o) => o.id === id); setFormData((prev) => ({ ...prev, currentLocation: item ? item.name : '' })); }} className="input-field flex-1">
+                      <select
+                        value={selectedLocationId}
+                        onChange={(e) => {
+                          const id = e.target.value;
+                          setSelectedLocationId(id);
+                          const item = locationOptions.find((o) => o.id === id);
+                          setFormData((prev) => ({ ...prev, currentLocation: item ? item.name : '' }));
+                        }}
+                        className="input-field flex-1"
+                      >
                         <option value="">Select location (optional)</option>
                         {locationOptions
                           .filter((o) => locationType === 'ALL' || o.type === locationType)
@@ -1135,7 +1144,6 @@ const ExcavatorList = () => {
                     {selectedLocationId === '' && (
                       <input type="text" value={formData.currentLocation} onChange={(e) => setFormData({ ...formData, currentLocation: e.target.value })} className="input-field" placeholder="Or enter custom location (e.g., PIT-01)" />
                     )}
-                    
                   </div>
                 ) : (
                   <input type="text" value={formData.currentLocation} onChange={(e) => setFormData({ ...formData, currentLocation: e.target.value })} className="input-field" placeholder="PIT-01" />
