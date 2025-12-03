@@ -28,10 +28,22 @@ export const createOperatorValidator = [
     .isFloat({ min: 0, max: 5 })
     .withMessage('Rating must be between 0 and 5'),
   body('salary').optional().isFloat({ min: 0 }).withMessage('Salary must be a positive number'),
+  body('employeeNumber')
+    .optional()
+    .trim()
+    .isLength({ min: 3, max: 50 })
+    .withMessage('Employee number must be between 3 and 50 characters'),
+  body('joinDate').optional().isISO8601().withMessage('Invalid join date format'),
+  body('resignDate').optional().isISO8601().withMessage('Invalid resign date format'),
+  body('competency').optional(),
 ];
 
 export const updateOperatorValidator = [
   param('id').trim().notEmpty().withMessage('Operator ID is required'),
+  body('licenseType')
+    .optional()
+    .isIn(['SIM_A', 'SIM_B1', 'SIM_B2', 'OPERATOR_ALAT_BERAT'])
+    .withMessage('Invalid license type'),
   body('licenseNumber')
     .optional()
     .trim()

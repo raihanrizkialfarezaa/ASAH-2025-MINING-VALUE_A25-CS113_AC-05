@@ -1,44 +1,194 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { operatorService } from '../../services/equipmentService';
-import { OPERATOR_STATUS, LICENSE_TYPE, SHIFT } from '../../config/constants';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
 import Modal from '../../components/common/Modal';
 import Pagination from '../../components/common/Pagination';
 import StatusBadge from '../../components/common/StatusBadge';
-import { Plus, Edit, Trash2, Eye } from 'lucide-react';
+import { Plus, Edit, Trash2, Eye, Filter, Search, X, SortAsc, SortDesc, RefreshCw, ChevronDown, User, Users, Activity, Clock, UserCheck, UserX, Star, Calendar, CreditCard, Award, CheckCircle, Truck, Shield, Mail } from 'lucide-react';
+import { userService } from '../../services';
 
 const OperatorList = () => {
   const [operators, setOperators] = useState([]);
+  const [allOperators, setAllOperators] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [pagination, setPagination] = useState({ page: 1, limit: 10, totalPages: 1 });
+  const [pagination, setPagination] = useState({ page: 1, limit: 15, totalPages: 1 });
   const [selectedOperator, setSelectedOperator] = useState(null);
   const [showModal, setShowModal] = useState(false);
   const [modalMode, setModalMode] = useState('view');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
+  const [shiftFilter, setShiftFilter] = useState('');
+  const [licenseTypeFilter, setLicenseTypeFilter] = useState('');
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+  const [sortField, setSortField] = useState('employeeNumber');
+  const [sortOrder, setSortOrder] = useState('asc');
+  const [filters, setFilters] = useState({
+    minRating: '',
+    maxRating: '',
+    minHours: '',
+    maxHours: '',
+  });
   const [formData, setFormData] = useState({
+    userId: '',
+    fullName: '',
+    email: '',
+    employeeNumber: '',
+    licenseType: '',
+    licenseNumber: '',
+    licenseExpiry: '',
+    joinDate: '',
     salary: '',
     shift: '',
     status: '',
-    licenseNumber: '',
-    licenseType: '',
+    rating: '',
+    competencyDumpTruck: false,
+    competencyHeavyEquipment: false,
+    competencyYearsExperience: '',
+    resignDate: '',
   });
+
+  const applyFiltersAndPagination = useCallback(() => {
+    let filtered = [...allOperators];
+
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter(
+        (operator) =>
+          operator.employeeNumber?.toLowerCase().includes(query) || operator.user?.fullName?.toLowerCase().includes(query) || operator.licenseNumber?.toLowerCase().includes(query) || operator.user?.email?.toLowerCase().includes(query)
+      );
+    }
+
+    if (statusFilter) {
+      filtered = filtered.filter((operator) => operator.status === statusFilter);
+    }
+
+    if (shiftFilter) {
+      filtered = filtered.filter((operator) => operator.shift === shiftFilter);
+    }
+
+    if (licenseTypeFilter) {
+      filtered = filtered.filter((operator) => operator.licenseType === licenseTypeFilter);
+    }
+
+    if (filters.minRating) {
+      filtered = filtered.filter((operator) => (operator.rating || 0) >= parseFloat(filters.minRating));
+    }
+
+    if (filters.maxRating) {
+      filtered = filtered.filter((operator) => (operator.rating || 0) <= parseFloat(filters.maxRating));
+    }
+
+    if (filters.minHours) {
+      filtered = filtered.filter((operator) => (operator.totalHours || 0) >= parseInt(filters.minHours));
+    }
+
+    if (filters.maxHours) {
+      filtered = filtered.filter((operator) => (operator.totalHours || 0) <= parseInt(filters.maxHours));
+    }
+
+    filtered.sort((a, b) => {
+      let aVal = a[sortField];
+      let bVal = b[sortField];
+
+      if (sortField === 'employeeNumber' || sortField === 'licenseNumber') {
+        aVal = aVal?.toLowerCase() || '';
+        bVal = bVal?.toLowerCase() || '';
+      } else if (sortField === 'fullName') {
+        aVal = a.user?.fullName?.toLowerCase() || '';
+        bVal = b.user?.fullName?.toLowerCase() || '';
+      }
+
+      if (aVal < bVal) return sortOrder === 'asc' ? -1 : 1;
+      if (aVal > bVal) return sortOrder === 'asc' ? 1 : -1;
+      return 0;
+    });
+
+    const totalPages = Math.ceil(filtered.length / pagination.limit);
+    const startIndex = (pagination.page - 1) * pagination.limit;
+    const paginatedData = filtered.slice(startIndex, startIndex + pagination.limit);
+
+    setOperators(paginatedData);
+    setPagination((prev) => ({ ...prev, totalPages }));
+  }, [allOperators, searchQuery, statusFilter, shiftFilter, licenseTypeFilter, filters, sortField, sortOrder, pagination.limit, pagination.page]);
 
   useEffect(() => {
     fetchOperators();
-  }, [pagination.page]);
+  }, []);
+
+  useEffect(() => {
+    applyFiltersAndPagination();
+  }, [applyFiltersAndPagination]);
 
   const fetchOperators = async () => {
     setLoading(true);
     try {
-      const res = await operatorService.getAll({ page: pagination.page, limit: pagination.limit });
-      setOperators(res.data || []);
-      setPagination((prev) => ({ ...prev, totalPages: res.meta?.totalPages || 1 }));
+      let allData = [];
+      let currentPage = 1;
+      const pageLimit = 100;
+      let hasMore = true;
+
+      while (hasMore) {
+        const res = await operatorService.getAll({ page: currentPage, limit: pageLimit });
+        const pageData = res.data || [];
+        allData = [...allData, ...pageData];
+
+        if (pageData.length < pageLimit) {
+          hasMore = false;
+        } else {
+          currentPage++;
+        }
+      }
+
+      setAllOperators(allData);
     } catch (error) {
       console.error('Failed to fetch operators:', error);
-      setOperators([]);
+      setAllOperators([]);
     } finally {
       setLoading(false);
     }
   };
+
+  const handleSort = (field) => {
+    if (sortField === field) {
+      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortOrder('asc');
+    }
+  };
+
+  const handleClearFilters = () => {
+    setSearchQuery('');
+    setStatusFilter('');
+    setShiftFilter('');
+    setLicenseTypeFilter('');
+    setFilters({
+      minRating: '',
+      maxRating: '',
+      minHours: '',
+      maxHours: '',
+    });
+    setPagination((prev) => ({ ...prev, page: 1 }));
+  };
+
+  const statusOptions = [
+    { value: 'ACTIVE', label: 'Active', color: 'green' },
+    { value: 'ON_LEAVE', label: 'On Leave', color: 'yellow' },
+    { value: 'SICK', label: 'Sick', color: 'orange' },
+    { value: 'RESIGNED', label: 'Resigned', color: 'red' },
+    { value: 'SUSPENDED', label: 'Suspended', color: 'gray' },
+  ];
+
+  const shiftOptions = [
+    { value: 'SHIFT_1', label: 'Shift 1' },
+    { value: 'SHIFT_2', label: 'Shift 2' },
+    { value: 'SHIFT_3', label: 'Shift 3' },
+  ];
+
+  const licenseTypeOptions = [
+    { value: 'SIM_B2', label: 'SIM B2' },
+    { value: 'OPERATOR_ALAT_BERAT', label: 'Heavy Equipment' },
+  ];
 
   const handleView = (operator) => {
     setSelectedOperator(operator);
@@ -46,14 +196,61 @@ const OperatorList = () => {
     setShowModal(true);
   };
 
+  const generateUserId = () => `opr_${Math.random().toString(36).slice(2, 8)}_${Date.now().toString().slice(-4)}`;
+
+  const generateEmployeeNumber = () => `OPR-${Date.now().toString().slice(-6)}`;
+
+  const handleCreate = () => {
+    setModalMode('create');
+    setSelectedOperator(null);
+    setFormData({
+      userId: generateUserId(),
+      fullName: '',
+      email: '',
+      employeeNumber: generateEmployeeNumber(),
+      licenseType: '',
+      licenseNumber: '',
+      licenseExpiry: '',
+      joinDate: new Date().toISOString().split('T')[0],
+      salary: '8000000',
+      shift: 'SHIFT_1',
+      status: 'ACTIVE',
+      rating: '5.0',
+      competencyDumpTruck: false,
+      competencyHeavyEquipment: false,
+      competencyYearsExperience: '',
+      resignDate: '',
+    });
+    setShowModal(true);
+  };
+
+  const generateStrongPassword = () => {
+    const upper = String.fromCharCode(65 + Math.floor(Math.random() * 26));
+    const lower = String.fromCharCode(97 + Math.floor(Math.random() * 26));
+    const digits = String(Math.floor(100 + Math.random() * 900));
+    const extras = 'A' + lower + digits + '!';
+    return upper + lower + digits + extras.slice(0, 4);
+  };
+
   const handleEdit = (operator) => {
     setSelectedOperator(operator);
     setFormData({
+      userId: operator.userId || '',
+      fullName: operator.user?.fullName || '',
+      email: operator.user?.email || '',
+      employeeNumber: operator.employeeNumber || '',
       salary: operator.salary || '',
       shift: operator.shift || '',
       status: operator.status || '',
       licenseNumber: operator.licenseNumber || '',
       licenseType: operator.licenseType || '',
+      licenseExpiry: operator.licenseExpiry ? new Date(operator.licenseExpiry).toISOString().split('T')[0] : '',
+      joinDate: operator.joinDate ? new Date(operator.joinDate).toISOString().split('T')[0] : '',
+      rating: operator.rating || '',
+      competencyDumpTruck: operator.competency?.dump_truck || false,
+      competencyHeavyEquipment: operator.competency?.heavy_equipment || false,
+      competencyYearsExperience: operator.competency?.years_experience || '',
+      resignDate: operator.resignDate ? new Date(operator.resignDate).toISOString().split('T')[0] : '',
     });
     setModalMode('edit');
     setShowModal(true);
@@ -62,20 +259,155 @@ const OperatorList = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      const payload = {
-        salary: parseFloat(formData.salary),
-        shift: formData.shift,
-        status: formData.status,
-        licenseNumber: formData.licenseNumber,
-        licenseType: formData.licenseType,
-      };
+      const payload = {};
 
-      await operatorService.update(selectedOperator.id, payload);
+      if (modalMode === 'create') {
+        if (!formData.employeeNumber || !formData.employeeNumber.trim()) {
+          window.alert('Employee Number is required');
+          return;
+        }
+        if (!formData.licenseType) {
+          window.alert('License Type is required');
+          return;
+        }
+        if (!formData.joinDate) {
+          window.alert('Join Date is required');
+          return;
+        }
+        if (!formData.fullName || !formData.fullName.trim()) {
+          window.alert('Operator full name is required to create user');
+          return;
+        }
+
+        payload.employeeNumber = formData.employeeNumber.toString().trim().toUpperCase();
+        payload.licenseType = formData.licenseType;
+        payload.joinDate = new Date(formData.joinDate).toISOString();
+        if (formData.licenseNumber) payload.licenseNumber = formData.licenseNumber.toString().trim();
+        if (formData.licenseExpiry) payload.licenseExpiry = new Date(formData.licenseExpiry).toISOString();
+        if (formData.status) payload.status = formData.status;
+        if (formData.shift) payload.shift = formData.shift;
+        const salary = formData.salary !== '' && formData.salary !== undefined ? Number(formData.salary) : undefined;
+        if (salary !== undefined && !Number.isNaN(salary)) payload.salary = salary;
+        const rating = formData.rating !== '' && formData.rating !== undefined ? Number(formData.rating) : undefined;
+
+        let resolvedUserId = null;
+        const looksLikeId = (val) => typeof val === 'string' && /^c[a-z0-9]{6,}$/.test(val);
+
+        try {
+          const list = await userService.getAll({ search: formData.userId || formData.fullName, role: 'OPERATOR', limit: 1 });
+          const found = list.data?.[0] || list.users?.[0];
+          if (found) resolvedUserId = found.id;
+        } catch (e) {}
+
+        if (!resolvedUserId && looksLikeId(formData.userId)) {
+          try {
+            const userResp = await userService.getById(formData.userId);
+            resolvedUserId = userResp.data?.id || userResp.id || formData.userId;
+          } catch (e) {}
+        }
+
+        if (!resolvedUserId) {
+          const username = formData.userId && formData.userId.trim() ? formData.userId.trim() : `operator${Date.now()}`;
+          try {
+            const emailToUse = formData.email && formData.email.trim() ? formData.email.trim() : `${username}${Date.now()}@example.com`;
+            const newUser = await userService.create({ username, password: generateStrongPassword(), fullName: formData.fullName.trim(), role: 'OPERATOR', email: emailToUse });
+            resolvedUserId = newUser.data?.id || newUser.id;
+          } catch (createErr) {
+            // last-ditch: try search again
+            try {
+              const list2 = await userService.getAll({ search: username || formData.fullName, role: 'OPERATOR', limit: 1 });
+              const found2 = list2.data?.[0] || list2.users?.[0];
+              if (found2) resolvedUserId = found2.id;
+            } catch (err) {}
+          }
+        }
+
+        if (!resolvedUserId) {
+          window.alert('Unable to resolve or create user account for this operator');
+          return;
+        }
+
+        payload.userId = resolvedUserId;
+        if (rating !== undefined && !Number.isNaN(rating)) payload.rating = rating;
+        payload.competency = {
+          dump_truck: !!formData.competencyDumpTruck,
+          heavy_equipment: !!formData.competencyHeavyEquipment,
+          years_experience: formData.competencyYearsExperience ? parseInt(formData.competencyYearsExperience, 10) : undefined,
+        };
+
+        await operatorService.create(payload);
+      } else {
+        const salary = formData.salary !== '' && formData.salary !== undefined ? Number(formData.salary) : undefined;
+        if (salary !== undefined && !Number.isNaN(salary)) payload.salary = salary;
+
+        if (formData.shift) payload.shift = formData.shift;
+        if (formData.status) payload.status = formData.status;
+        if (formData.licenseNumber) payload.licenseNumber = formData.licenseNumber.toString().trim();
+        if (formData.licenseType) payload.licenseType = formData.licenseType;
+        if (formData.licenseExpiry) payload.licenseExpiry = new Date(formData.licenseExpiry).toISOString();
+
+        const rating = formData.rating !== '' && formData.rating !== undefined ? Number(formData.rating) : undefined;
+        if (rating !== undefined && !Number.isNaN(rating)) payload.rating = rating;
+
+        if (formData.employeeNumber && formData.employeeNumber.trim() && formData.employeeNumber.trim() !== selectedOperator.employeeNumber) {
+          payload.employeeNumber = formData.employeeNumber.trim().toUpperCase();
+        }
+
+        if (formData.joinDate) {
+          payload.joinDate = new Date(formData.joinDate).toISOString();
+        }
+
+        if (formData.resignDate) {
+          payload.resignDate = new Date(formData.resignDate).toISOString();
+        }
+
+        payload.competency = {
+          dump_truck: !!formData.competencyDumpTruck,
+          heavy_equipment: !!formData.competencyHeavyEquipment,
+          years_experience: formData.competencyYearsExperience ? parseInt(formData.competencyYearsExperience, 10) : undefined,
+        };
+
+        // update user fullName if it changed
+        if (selectedOperator?.user?.id && formData.fullName && formData.fullName.trim() !== selectedOperator.user?.fullName) {
+          try {
+            await userService.update(selectedOperator.user.id, { fullName: formData.fullName.trim() });
+          } catch (err) {
+            console.error('Failed to update user fullName:', err);
+            window.alert('Failed to update user name');
+            return;
+          }
+        }
+
+        if (Object.keys(payload).length === 0) {
+          window.alert('No changes to update');
+          return;
+        }
+        // update user email if it changed
+        if (selectedOperator?.user?.id && formData.email && formData.email.trim() !== selectedOperator.user?.email) {
+          try {
+            await userService.update(selectedOperator.user.id, { email: formData.email.trim() });
+          } catch (err) {
+            console.error('Failed to update user email:', err);
+            window.alert('Failed to update user email');
+            return;
+          }
+        }
+        await operatorService.update(selectedOperator.id, payload);
+      }
+
       setShowModal(false);
       fetchOperators();
     } catch (error) {
-      console.error('Failed to update operator:', error);
-      alert('Failed to update operator');
+      console.error('Failed to save operator:', error);
+      if (error.response?.data?.message) {
+        window.alert(error.response.data.message);
+      } else if (error.response?.data?.data) {
+        const errors = error.response.data.data;
+        const errorMessages = Array.isArray(errors) ? errors.map((e) => e.msg).join('\n') : JSON.stringify(errors);
+        window.alert(errorMessages);
+      } else {
+        window.alert('Failed to save operator. Please check your input.');
+      }
     }
   };
 
@@ -86,6 +418,7 @@ const OperatorList = () => {
         fetchOperators();
       } catch (error) {
         console.error('Failed to delete operator:', error);
+        window.alert('Failed to delete operator');
       }
     }
   };
@@ -94,162 +427,737 @@ const OperatorList = () => {
     return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(value || 0);
   };
 
-  if (loading) {
+  const formatDate = (date) => {
+    if (!date) return '-';
+    return new Date(date).toLocaleDateString('id-ID', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+    });
+  };
+
+  const getShiftLabel = (shift) => {
+    const shiftMap = {
+      SHIFT_1: 'Shift 1 (07:00-15:00)',
+      SHIFT_2: 'Shift 2 (15:00-23:00)',
+      SHIFT_3: 'Shift 3 (23:00-07:00)',
+    };
+    return shiftMap[shift] || shift;
+  };
+
+  const getLicenseTypeLabel = (type) => {
+    const typeMap = {
+      SIM_B2: 'SIM B2',
+      OPERATOR_ALAT_BERAT: 'Heavy Equipment Operator',
+    };
+    return typeMap[type] || type;
+  };
+
+  if (loading && !operators.length) {
     return <LoadingSpinner fullScreen />;
   }
+
+  const activeFiltersCount = [searchQuery, statusFilter, shiftFilter, licenseTypeFilter, filters.minRating, filters.maxRating, filters.minHours, filters.maxHours].filter(Boolean).length;
 
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold">Operators</h1>
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900 flex items-center space-x-3">
+            <Users className="text-blue-600" size={36} />
+            <span>Operators Management</span>
+          </h1>
+          <p className="text-sm text-gray-500 mt-1">Manage and monitor operator workforce in real-time</p>
+        </div>
+        <div className="flex space-x-3">
+          <button onClick={handleCreate} className="btn-primary flex items-center space-x-2 px-5 py-2.5">
+            <Plus size={20} />
+            <span>Add Operator</span>
+          </button>
+          <button onClick={fetchOperators} className="bg-white hover:bg-gray-50 px-4 py-2 rounded-lg border shadow-sm text-gray-700 font-medium transition-colors flex items-center space-x-2">
+            <RefreshCw size={18} />
+            <span>Refresh</span>
+          </button>
+        </div>
       </div>
 
-      <div className="card table-container">
-        <table className="data-table">
-          <thead className="bg-gray-50">
-            <tr>
-              <th className="table-header">Employee No</th>
-              <th className="table-header">Name</th>
-              <th className="table-header">License Type</th>
-              <th className="table-header">Shift</th>
-              <th className="table-header">Status</th>
-              <th className="table-header">Salary</th>
-              <th className="table-header">Rating</th>
-              <th className="table-header">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-200">
-            {operators.map((operator) => (
-              <tr key={operator.id}>
-                <td className="table-cell font-medium">{operator.employeeNumber}</td>
-                <td className="table-cell">{operator.user?.fullName || '-'}</td>
-                <td className="table-cell">{operator.licenseType}</td>
-                <td className="table-cell">{operator.shift || '-'}</td>
-                <td className="table-cell">
-                  <StatusBadge status={operator.status} />
-                </td>
-                <td className="table-cell">{formatCurrency(operator.salary)}</td>
-                <td className="table-cell">{operator.rating?.toFixed(1) || '-'}</td>
-                <td className="table-cell">
-                  <div className="flex space-x-2">
-                    <button onClick={() => handleView(operator)} className="text-blue-600 hover:text-blue-800">
-                      <Eye size={18} />
-                    </button>
-                    <button onClick={() => handleEdit(operator)} className="text-green-600 hover:text-green-800">
-                      <Edit size={18} />
-                    </button>
-                    <button onClick={() => handleDelete(operator.id)} className="text-red-600 hover:text-red-800">
-                      <Trash2 size={18} />
-                    </button>
+      <div className="grid grid-cols-4 gap-4">
+        <div className="card bg-gradient-to-br from-blue-50 to-cyan-50 border-blue-200">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-gray-600 mb-1">Total Operators</p>
+              <p className="text-3xl font-bold text-blue-600">{allOperators.length}</p>
+            </div>
+            <div className="p-3 bg-blue-100 rounded-xl">
+              <Users className="text-blue-600" size={28} />
+            </div>
+          </div>
+        </div>
+        <div className="card bg-gradient-to-br from-green-50 to-emerald-50 border-green-200">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-gray-600 mb-1">Active</p>
+              <p className="text-3xl font-bold text-green-600">{allOperators.filter((o) => o.status === 'ACTIVE').length}</p>
+            </div>
+            <div className="p-3 bg-green-100 rounded-xl">
+              <UserCheck className="text-green-600" size={28} />
+            </div>
+          </div>
+        </div>
+        <div className="card bg-gradient-to-br from-yellow-50 to-amber-50 border-yellow-200">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-gray-600 mb-1">On Leave</p>
+              <p className="text-3xl font-bold text-yellow-600">{allOperators.filter((o) => o.status === 'ON_LEAVE').length}</p>
+            </div>
+            <div className="p-3 bg-yellow-100 rounded-xl">
+              <Clock className="text-yellow-600" size={28} />
+            </div>
+          </div>
+        </div>
+        <div className="card bg-gradient-to-br from-orange-50 to-red-50 border-orange-200">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-gray-600 mb-1">Sick</p>
+              <p className="text-3xl font-bold text-orange-600">{allOperators.filter((o) => o.status === 'SICK').length}</p>
+            </div>
+            <div className="p-3 bg-orange-100 rounded-xl">
+              <UserX className="text-orange-600" size={28} />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="card">
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="flex-1 flex items-center space-x-3">
+              <div className="relative" style={{ minWidth: '320px', maxWidth: '450px', flex: '1' }}>
+                <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-500" size={20} />
+                <input
+                  type="text"
+                  placeholder="Search by name, employee number, license, email..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  style={{
+                    width: '100%',
+                    height: '44px',
+                    paddingLeft: '44px',
+                    paddingRight: '44px',
+                    fontSize: '14px',
+                    color: '#1f2937',
+                    backgroundColor: '#ffffff',
+                    border: '1px solid #d1d5db',
+                    borderRadius: '8px',
+                    outline: 'none',
+                    boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
+                  }}
+                  onFocus={(e) => {
+                    e.target.style.borderColor = '#3b82f6';
+                    e.target.style.boxShadow = '0 0 0 3px rgba(59,130,246,0.1)';
+                  }}
+                  onBlur={(e) => {
+                    e.target.style.borderColor = '#d1d5db';
+                    e.target.style.boxShadow = '0 1px 2px rgba(0,0,0,0.05)';
+                  }}
+                />
+                {searchQuery && (
+                  <button onClick={() => setSearchQuery('')} className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                    <X size={18} />
+                  </button>
+                )}
+              </div>
+
+              <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="input-field min-w-[160px]">
+                <option value="">All Status</option>
+                {statusOptions.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+
+              <select value={shiftFilter} onChange={(e) => setShiftFilter(e.target.value)} className="input-field min-w-[140px]">
+                <option value="">All Shifts</option>
+                {shiftOptions.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+
+              <button
+                onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
+                className={`px-4 py-2 rounded-lg border font-medium transition-colors flex items-center space-x-2 ${
+                  showAdvancedFilters || activeFiltersCount > 0 ? 'bg-blue-50 border-blue-300 text-blue-700' : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
+                }`}
+              >
+                <Filter size={18} />
+                <span>Filters</span>
+                {activeFiltersCount > 0 && <span className="bg-blue-600 text-white text-xs px-2 py-0.5 rounded-full">{activeFiltersCount}</span>}
+                <ChevronDown className={`transform transition-transform ${showAdvancedFilters ? 'rotate-180' : ''}`} size={16} />
+              </button>
+
+              {activeFiltersCount > 0 && (
+                <button onClick={handleClearFilters} className="px-4 py-2 rounded-lg border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 font-medium transition-colors flex items-center space-x-2">
+                  <X size={18} />
+                  <span>Clear</span>
+                </button>
+              )}
+            </div>
+
+            <div className="flex items-center space-x-2 text-sm text-gray-600">
+              <span>
+                Showing {operators.length} of {allOperators.length} operators
+              </span>
+            </div>
+          </div>
+
+          {showAdvancedFilters && (
+            <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+              <h3 className="font-semibold text-gray-900 mb-3 flex items-center space-x-2">
+                <Filter size={18} />
+                <span>Advanced Filters</span>
+              </h3>
+              <div className="grid grid-cols-4 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">License Type</label>
+                  <select value={licenseTypeFilter} onChange={(e) => setLicenseTypeFilter(e.target.value)} className="input-field">
+                    <option value="">All Types</option>
+                    {licenseTypeOptions.map((opt) => (
+                      <option key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Min Rating</label>
+                  <input type="number" step="0.1" min="0" max="5" value={filters.minRating} onChange={(e) => setFilters({ ...filters, minRating: e.target.value })} placeholder="0.0" className="input-field" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Max Rating</label>
+                  <input type="number" step="0.1" min="0" max="5" value={filters.maxRating} onChange={(e) => setFilters({ ...filters, maxRating: e.target.value })} placeholder="5.0" className="input-field" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Total Hours Range</label>
+                  <div className="flex items-center space-x-2">
+                    <input type="number" value={filters.minHours} onChange={(e) => setFilters({ ...filters, minHours: e.target.value })} placeholder="Min" className="input-field" />
+                    <span className="text-gray-500">-</span>
+                    <input type="number" value={filters.maxHours} onChange={(e) => setFilters({ ...filters, maxHours: e.target.value })} placeholder="Max" className="input-field" />
                   </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      <Pagination currentPage={pagination.page} totalPages={pagination.totalPages} onPageChange={(page) => setPagination((prev) => ({ ...prev, page }))} />
-
-      <Modal isOpen={showModal} onClose={() => setShowModal(false)} title={modalMode === 'edit' ? 'Edit Operator' : 'Operator Details'} size="lg">
-        {modalMode === 'view' && selectedOperator ? (
-          <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="text-sm font-medium text-gray-600">Employee Number</label>
-                <p className="text-lg">{selectedOperator.employeeNumber}</p>
-              </div>
-              <div>
-                <label className="text-sm font-medium text-gray-600">Name</label>
-                <p className="text-lg">{selectedOperator.user?.fullName || '-'}</p>
-              </div>
-              <div>
-                <label className="text-sm font-medium text-gray-600">License Type</label>
-                <p className="text-lg">{selectedOperator.licenseType}</p>
-              </div>
-              <div>
-                <label className="text-sm font-medium text-gray-600">License Number</label>
-                <p className="text-lg">{selectedOperator.licenseNumber || '-'}</p>
-              </div>
-              <div>
-                <label className="text-sm font-medium text-gray-600">Shift</label>
-                <p className="text-lg">{selectedOperator.shift || '-'}</p>
-              </div>
-              <div>
-                <label className="text-sm font-medium text-gray-600">Status</label>
-                <div className="mt-1">
-                  <StatusBadge status={selectedOperator.status} />
                 </div>
               </div>
-              <div>
-                <label className="text-sm font-medium text-gray-600">Salary</label>
-                <p className="text-lg font-semibold text-green-700">{formatCurrency(selectedOperator.salary)}</p>
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="card overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead className="bg-gradient-to-r from-gray-50 to-gray-100">
+              <tr>
+                <th className="table-header cursor-pointer hover:bg-gray-200 transition-colors group" onClick={() => handleSort('employeeNumber')}>
+                  <div className="flex items-center justify-between">
+                    <span>Employee No</span>
+                    {sortField === 'employeeNumber' && (sortOrder === 'asc' ? <SortAsc size={16} className="text-blue-600" /> : <SortDesc size={16} className="text-blue-600" />)}
+                  </div>
+                </th>
+                <th className="table-header cursor-pointer hover:bg-gray-200 transition-colors group" onClick={() => handleSort('fullName')}>
+                  <div className="flex items-center justify-between">
+                    <span>Name</span>
+                    {sortField === 'fullName' && (sortOrder === 'asc' ? <SortAsc size={16} className="text-blue-600" /> : <SortDesc size={16} className="text-blue-600" />)}
+                  </div>
+                </th>
+                <th className="table-header">License</th>
+                <th className="table-header cursor-pointer hover:bg-gray-200 transition-colors group" onClick={() => handleSort('shift')}>
+                  <div className="flex items-center justify-between">
+                    <span>Shift</span>
+                    {sortField === 'shift' && (sortOrder === 'asc' ? <SortAsc size={16} className="text-blue-600" /> : <SortDesc size={16} className="text-blue-600" />)}
+                  </div>
+                </th>
+                <th className="table-header cursor-pointer hover:bg-gray-200 transition-colors group" onClick={() => handleSort('status')}>
+                  <div className="flex items-center justify-between">
+                    <span>Status</span>
+                    {sortField === 'status' && (sortOrder === 'asc' ? <SortAsc size={16} className="text-blue-600" /> : <SortDesc size={16} className="text-blue-600" />)}
+                  </div>
+                </th>
+                <th className="table-header cursor-pointer hover:bg-gray-200 transition-colors group" onClick={() => handleSort('rating')}>
+                  <div className="flex items-center justify-between">
+                    <span>Rating</span>
+                    {sortField === 'rating' && (sortOrder === 'asc' ? <SortAsc size={16} className="text-blue-600" /> : <SortDesc size={16} className="text-blue-600" />)}
+                  </div>
+                </th>
+                <th className="table-header cursor-pointer hover:bg-gray-200 transition-colors group" onClick={() => handleSort('salary')}>
+                  <div className="flex items-center justify-between">
+                    <span>Salary</span>
+                    {sortField === 'salary' && (sortOrder === 'asc' ? <SortAsc size={16} className="text-blue-600" /> : <SortDesc size={16} className="text-blue-600" />)}
+                  </div>
+                </th>
+                <th className="table-header cursor-pointer hover:bg-gray-200 transition-colors group" onClick={() => handleSort('totalHours')}>
+                  <div className="flex items-center justify-between">
+                    <span>Total Hours</span>
+                    {sortField === 'totalHours' && (sortOrder === 'asc' ? <SortAsc size={16} className="text-blue-600" /> : <SortDesc size={16} className="text-blue-600" />)}
+                  </div>
+                </th>
+                <th className="table-header">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-200 bg-white">
+              {operators.length === 0 ? (
+                <tr>
+                  <td colSpan="9" className="text-center py-12">
+                    <div className="flex flex-col items-center space-y-3">
+                      <Users className="text-gray-400" size={48} />
+                      <p className="text-gray-500 font-medium">No operators found</p>
+                      <p className="text-sm text-gray-400">Try adjusting your filters or search query</p>
+                    </div>
+                  </td>
+                </tr>
+              ) : (
+                operators.map((operator) => (
+                  <tr key={operator.id} className="hover:bg-blue-50 transition-colors">
+                    <td className="table-cell">
+                      <span className="font-bold text-blue-600">{operator.employeeNumber}</span>
+                    </td>
+                    <td className="table-cell">
+                      <div className="flex items-center space-x-2">
+                        <User className="text-gray-400" size={16} />
+                        <span className="font-medium text-gray-900">{operator.user?.fullName || '-'}</span>
+                      </div>
+                    </td>
+                    <td className="table-cell">
+                      <div className="flex flex-col">
+                        <span className="text-sm font-medium text-gray-900">{getLicenseTypeLabel(operator.licenseType)}</span>
+                        <span className="text-xs text-gray-500">{operator.licenseNumber || '-'}</span>
+                      </div>
+                    </td>
+                    <td className="table-cell">
+                      <span className="text-gray-700">{operator.shift?.replace('SHIFT_', 'Shift ') || '-'}</span>
+                    </td>
+                    <td className="table-cell">
+                      <StatusBadge status={operator.status} />
+                    </td>
+                    <td className="table-cell">
+                      <div className="flex items-center space-x-1">
+                        <Star className="text-yellow-500" size={16} fill="currentColor" />
+                        <span className="font-semibold text-gray-900">{operator.rating?.toFixed(2) || '-'}</span>
+                      </div>
+                    </td>
+                    <td className="table-cell">
+                      <span className="font-semibold text-gray-900">{formatCurrency(operator.salary)}</span>
+                    </td>
+                    <td className="table-cell">
+                      <span className="font-semibold text-gray-900">{operator.totalHours || 0}</span>
+                      <span className="text-gray-500 ml-1">hrs</span>
+                    </td>
+                    <td className="table-cell">
+                      <div className="flex space-x-1">
+                        <button onClick={() => handleView(operator)} className="p-2 text-blue-600 hover:bg-blue-100 rounded-lg transition-colors" title="View Details">
+                          <Eye size={18} />
+                        </button>
+                        <button onClick={() => handleEdit(operator)} className="p-2 text-green-600 hover:bg-green-100 rounded-lg transition-colors" title="Edit">
+                          <Edit size={18} />
+                        </button>
+                        <button onClick={() => handleDelete(operator.id)} className="p-2 text-red-600 hover:bg-red-100 rounded-lg transition-colors" title="Delete">
+                          <Trash2 size={18} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div className="flex items-center justify-between">
+        <div className="flex items-center space-x-4">
+          <label className="text-sm text-gray-600 flex items-center space-x-2">
+            <span>Items per page:</span>
+            <select value={pagination.limit} onChange={(e) => setPagination((prev) => ({ ...prev, limit: parseInt(e.target.value), page: 1 }))} className="input-field py-1 px-2">
+              <option value="10">10</option>
+              <option value="15">15</option>
+              <option value="25">25</option>
+              <option value="50">50</option>
+              <option value="100">100</option>
+            </select>
+          </label>
+        </div>
+        <Pagination currentPage={pagination.page} totalPages={pagination.totalPages} onPageChange={(page) => setPagination((prev) => ({ ...prev, page }))} />
+      </div>
+
+      <Modal
+        isOpen={showModal}
+        onClose={() => setShowModal(false)}
+        title={
+          modalMode === 'edit' ? (
+            <div className="flex items-center space-x-3">
+              <div className="p-2 bg-green-100 rounded-lg">
+                <Edit className="text-green-600" size={24} />
               </div>
-              <div>
-                <label className="text-sm font-medium text-gray-600">Rating</label>
-                <p className="text-lg">{selectedOperator.rating?.toFixed(1) || '-'}</p>
+              <span>Edit Operator</span>
+            </div>
+          ) : modalMode === 'create' ? (
+            <div className="flex items-center space-x-3">
+              <div className="p-2 bg-blue-100 rounded-lg">
+                <Plus className="text-blue-600" size={24} />
               </div>
-              <div>
-                <label className="text-sm font-medium text-gray-600">Total Hours</label>
-                <p className="text-lg">{selectedOperator.totalHours} hours</p>
+              <span>Create New Operator</span>
+            </div>
+          ) : (
+            <div className="flex items-center space-x-3">
+              <div className="p-2 bg-purple-100 rounded-lg">
+                <Eye className="text-purple-600" size={24} />
               </div>
-              <div>
-                <label className="text-sm font-medium text-gray-600">Join Date</label>
-                <p className="text-lg">{new Date(selectedOperator.joinDate).toLocaleDateString()}</p>
+              <span>Operator Details</span>
+            </div>
+          )
+        }
+        size="2xl"
+      >
+        {modalMode === 'view' && selectedOperator ? (
+          <div className="space-y-6">
+            <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-6 rounded-xl border border-blue-200">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h3 className="text-2xl font-bold text-gray-900">{selectedOperator.employeeNumber}</h3>
+                  <p className="text-gray-600 mt-1">{selectedOperator.user?.fullName || '-'}</p>
+                </div>
+                <StatusBadge status={selectedOperator.status} />
               </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-6">
+              <div className="bg-white p-4 rounded-lg border border-gray-200">
+                <div className="flex items-center space-x-2 mb-2">
+                  <Mail className="text-blue-600" size={18} />
+                  <label className="text-sm font-semibold text-gray-600">Email</label>
+                </div>
+                <p className="text-lg font-medium text-gray-900">{selectedOperator.user?.email || '-'}</p>
+              </div>
+
+              <div className="bg-white p-4 rounded-lg border border-gray-200">
+                <div className="flex items-center space-x-2 mb-2">
+                  <Shield className="text-purple-600" size={18} />
+                  <label className="text-sm font-semibold text-gray-600">License Type</label>
+                </div>
+                <p className="text-lg font-medium text-gray-900">{getLicenseTypeLabel(selectedOperator.licenseType)}</p>
+                <p className="text-sm text-gray-600">{selectedOperator.licenseNumber || '-'}</p>
+              </div>
+
+              <div className="bg-white p-4 rounded-lg border border-gray-200">
+                <div className="flex items-center space-x-2 mb-2">
+                  <Calendar className="text-green-600" size={18} />
+                  <label className="text-sm font-semibold text-gray-600">License Expiry</label>
+                </div>
+                <p className="text-lg font-medium text-gray-900">{formatDate(selectedOperator.licenseExpiry)}</p>
+              </div>
+
+              <div className="bg-white p-4 rounded-lg border border-gray-200">
+                <div className="flex items-center space-x-2 mb-2">
+                  <Clock className="text-indigo-600" size={18} />
+                  <label className="text-sm font-semibold text-gray-600">Shift</label>
+                </div>
+                <p className="text-lg font-medium text-gray-900">{getShiftLabel(selectedOperator.shift)}</p>
+              </div>
+
+              <div className="bg-white p-4 rounded-lg border border-gray-200">
+                <div className="flex items-center space-x-2 mb-2">
+                  <Star className="text-yellow-600" size={18} />
+                  <label className="text-sm font-semibold text-gray-600">Rating</label>
+                </div>
+                <p className="text-2xl font-bold text-yellow-600">
+                  {selectedOperator.rating?.toFixed(2) || '-'} <span className="text-lg">/5.0</span>
+                </p>
+              </div>
+
+              <div className="bg-white p-4 rounded-lg border border-gray-200">
+                <div className="flex items-center space-x-2 mb-2">
+                  <Activity className="text-orange-600" size={18} />
+                  <label className="text-sm font-semibold text-gray-600">Total Hours</label>
+                </div>
+                <p className="text-2xl font-bold text-orange-600">
+                  {selectedOperator.totalHours || 0} <span className="text-lg">hrs</span>
+                </p>
+              </div>
+
+              <div className="bg-white p-4 rounded-lg border border-gray-200">
+                <div className="flex items-center space-x-2 mb-2">
+                  <CreditCard className="text-green-600" size={18} />
+                  <label className="text-sm font-semibold text-gray-600">Salary</label>
+                </div>
+                <p className="text-xl font-bold text-green-600">{formatCurrency(selectedOperator.salary)}</p>
+              </div>
+
+              <div className="bg-white p-4 rounded-lg border border-gray-200">
+                <div className="flex items-center space-x-2 mb-2">
+                  <Calendar className="text-purple-600" size={18} />
+                  <label className="text-sm font-semibold text-gray-600">Join Date</label>
+                </div>
+                <p className="text-lg font-medium text-gray-900">{formatDate(selectedOperator.joinDate)}</p>
+              </div>
+
+              {selectedOperator.trucks && selectedOperator.trucks.length > 0 && (
+                <div className="col-span-2 bg-blue-50 p-4 rounded-lg border border-blue-200">
+                  <div className="flex items-center space-x-2 mb-3">
+                    <Truck className="text-blue-600" size={18} />
+                    <label className="text-sm font-semibold text-gray-600">Assigned Trucks</label>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {selectedOperator.trucks.map((truck) => (
+                      <div key={truck.id} className="bg-white px-3 py-2 rounded-lg border border-blue-300">
+                        <p className="font-semibold text-blue-700">{truck.code}</p>
+                        <p className="text-xs text-gray-600">{truck.name}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {selectedOperator.competency && (
+                <div className="col-span-2 bg-purple-50 p-4 rounded-lg border border-purple-200">
+                  <div className="flex items-center space-x-2 mb-3">
+                    <Award className="text-purple-600" size={18} />
+                    <label className="text-sm font-semibold text-gray-600">Competency</label>
+                  </div>
+                  <div className="grid grid-cols-3 gap-3">
+                    <div className="bg-white p-3 rounded-lg">
+                      <p className="text-sm text-gray-600">Dump Truck</p>
+                      <p className="font-semibold text-gray-900">{selectedOperator.competency.dump_truck ? 'Yes' : 'No'}</p>
+                    </div>
+                    <div className="bg-white p-3 rounded-lg">
+                      <p className="text-sm text-gray-600">Heavy Equipment</p>
+                      <p className="font-semibold text-gray-900">{selectedOperator.competency.heavy_equipment ? 'Yes' : 'No'}</p>
+                    </div>
+                    <div className="bg-white p-3 rounded-lg">
+                      <p className="text-sm text-gray-600">Experience</p>
+                      <p className="font-semibold text-gray-900">{selectedOperator.competency.years_experience || 0} years</p>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="space-y-6">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+              <p className="text-sm text-blue-800">
+                <strong>Note:</strong> {modalMode === 'create' ? 'All required fields must be filled. Employee number format: OPR-XXXX' : 'Update operator information carefully. Leave fields empty to keep current values.'}
+              </p>
+            </div>
+
+            <div className="grid grid-cols-2 gap-6">
+              {modalMode === 'create' && (
+                <>
+                  <div className="col-span-2">
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      User ID <span className="text-red-500">*</span>
+                    </label>
+                    <div className="flex items-center space-x-2">
+                      <input type="text" value={formData.userId} onChange={(e) => setFormData({ ...formData, userId: e.target.value })} className="input-field flex-1" placeholder="User ID with OPERATOR role" required />
+                      <button type="button" onClick={() => setFormData((prev) => ({ ...prev, userId: generateUserId() }))} className="p-2 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors">
+                        <RefreshCw size={16} />
+                      </button>
+                    </div>
+                    <p className="text-xs text-gray-500 mt-1">The user must have OPERATOR role and not already have an operator profile</p>
+                  </div>
+
+                  <div className="col-span-2">
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Operator Email</label>
+                    <input type="email" value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} className="input-field" placeholder="name@example.com" />
+                  </div>
+
+                  <div className="col-span-2">
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      Operator Name <span className="text-red-500">*</span>
+                    </label>
+                    <input type="text" value={formData.fullName} onChange={(e) => setFormData({ ...formData, fullName: e.target.value })} className="input-field" placeholder="Full name e.g. Joko Nugroho" required />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      Employee Number <span className="text-red-500">*</span>
+                    </label>
+                    <div className="flex items-center space-x-2">
+                      <input type="text" value={formData.employeeNumber} onChange={(e) => setFormData({ ...formData, employeeNumber: e.target.value })} className="input-field" placeholder="OPR-0001" required />
+                      <button type="button" onClick={() => setFormData((prev) => ({ ...prev, employeeNumber: generateEmployeeNumber() }))} className="p-2 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors">
+                        <RefreshCw size={16} />
+                      </button>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      License Type <span className="text-red-500">*</span>
+                    </label>
+                    <select value={formData.licenseType} onChange={(e) => setFormData({ ...formData, licenseType: e.target.value })} className="input-field" required>
+                      <option value="">Select License Type</option>
+                      {licenseTypeOptions.map((opt) => (
+                        <option key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </option>
+                      ))}
+                      <option value="SIM_A">SIM A</option>
+                      <option value="SIM_B1">SIM B1</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      Join Date <span className="text-red-500">*</span>
+                    </label>
+                    <input type="date" value={formData.joinDate} onChange={(e) => setFormData({ ...formData, joinDate: e.target.value })} className="input-field" required />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">License Expiry</label>
+                    <input type="date" value={formData.licenseExpiry} onChange={(e) => setFormData({ ...formData, licenseExpiry: e.target.value })} className="input-field" />
+                  </div>
+                  <div className="col-span-2">
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Competency</label>
+                    <div className="flex items-center space-x-4">
+                      <label className="flex items-center space-x-2">
+                        <input type="checkbox" checked={!!formData.competencyDumpTruck} onChange={(e) => setFormData({ ...formData, competencyDumpTruck: e.target.checked })} /> <span className="text-sm">Dump Truck</span>
+                      </label>
+                      <label className="flex items-center space-x-2">
+                        <input type="checkbox" checked={!!formData.competencyHeavyEquipment} onChange={(e) => setFormData({ ...formData, competencyHeavyEquipment: e.target.checked })} /> <span className="text-sm">Heavy Equipment</span>
+                      </label>
+                      <div className="flex items-center space-x-2">
+                        <input type="number" min="0" value={formData.competencyYearsExperience} onChange={(e) => setFormData({ ...formData, competencyYearsExperience: e.target.value })} className="input-field w-28" placeholder="Years" />{' '}
+                        <span className="text-sm text-gray-600">years</span>
+                      </div>
+                    </div>
+                  </div>
+                </>
+              )}
+
+              {modalMode === 'edit' && (
+                <>
+                  <div className="col-span-2">
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">User ID</label>
+                    <input type="text" value={formData.userId} readOnly className="input-field bg-gray-50" />
+                  </div>
+
+                  <div className="col-span-2">
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Employee Number</label>
+                    <div className="flex items-center space-x-2">
+                      <input type="text" value={formData.employeeNumber} onChange={(e) => setFormData({ ...formData, employeeNumber: e.target.value })} className="input-field flex-1" placeholder="OPR-0001" />
+                      <button type="button" onClick={() => setFormData((prev) => ({ ...prev, employeeNumber: generateEmployeeNumber() }))} className="p-2 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors">
+                        <RefreshCw size={16} />
+                      </button>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Join Date</label>
+                    <input type="date" value={formData.joinDate} onChange={(e) => setFormData({ ...formData, joinDate: e.target.value })} className="input-field" />
+                  </div>
+                  <div className="col-span-2">
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Operator Email</label>
+                    <input type="email" value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} className="input-field" placeholder="name@example.com" />
+                  </div>
+
+                  <div className="col-span-2">
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Operator Name</label>
+                    <input type="text" value={formData.fullName} onChange={(e) => setFormData({ ...formData, fullName: e.target.value })} className="input-field" placeholder="Full name" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">License Type</label>
+                    <select value={formData.licenseType} onChange={(e) => setFormData({ ...formData, licenseType: e.target.value })} className="input-field">
+                      <option value="">Select License Type</option>
+                      {licenseTypeOptions.map((opt) => (
+                        <option key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </option>
+                      ))}
+                      <option value="SIM_A">SIM A</option>
+                      <option value="SIM_B1">SIM B1</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">License Number</label>
+                    <input type="text" value={formData.licenseNumber} onChange={(e) => setFormData({ ...formData, licenseNumber: e.target.value })} className="input-field" placeholder="SIM-XXXXXXXX" />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">License Expiry</label>
+                    <input type="date" value={formData.licenseExpiry} onChange={(e) => setFormData({ ...formData, licenseExpiry: e.target.value })} className="input-field" />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Rating</label>
+                    <input type="number" step="0.1" min="0" max="5" value={formData.rating} onChange={(e) => setFormData({ ...formData, rating: e.target.value })} className="input-field" placeholder="5.0" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Resign Date</label>
+                    <input type="date" value={formData.resignDate} onChange={(e) => setFormData({ ...formData, resignDate: e.target.value })} className="input-field" />
+                  </div>
+                  <div className="col-span-2">
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Competency</label>
+                    <div className="flex items-center space-x-4">
+                      <label className="flex items-center space-x-2">
+                        <input type="checkbox" checked={!!formData.competencyDumpTruck} onChange={(e) => setFormData({ ...formData, competencyDumpTruck: e.target.checked })} /> <span className="text-sm">Dump Truck</span>
+                      </label>
+                      <label className="flex items-center space-x-2">
+                        <input type="checkbox" checked={!!formData.competencyHeavyEquipment} onChange={(e) => setFormData({ ...formData, competencyHeavyEquipment: e.target.checked })} /> <span className="text-sm">Heavy Equipment</span>
+                      </label>
+                      <div className="flex items-center space-x-2">
+                        <input type="number" min="0" value={formData.competencyYearsExperience} onChange={(e) => setFormData({ ...formData, competencyYearsExperience: e.target.value })} className="input-field w-28" placeholder="Years" />{' '}
+                        <span className="text-sm text-gray-600">years</span>
+                      </div>
+                    </div>
+                  </div>
+                </>
+              )}
+
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Salary (IDR)</label>
-                <input type="number" value={formData.salary} onChange={(e) => setFormData({ ...formData, salary: e.target.value })} className="input-field" required />
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Salary (IDR) {modalMode === 'create' && <span className="text-red-500">*</span>}</label>
+                <input type="number" step="0.01" value={formData.salary} onChange={(e) => setFormData({ ...formData, salary: e.target.value })} className="input-field" placeholder="8000000" />
               </div>
+
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Shift</label>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Shift</label>
                 <select value={formData.shift} onChange={(e) => setFormData({ ...formData, shift: e.target.value })} className="input-field">
                   <option value="">Select Shift</option>
-                  {Object.values(SHIFT).map((s) => (
-                    <option key={s} value={s}>
-                      {s}
+                  {shiftOptions.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
                     </option>
                   ))}
                 </select>
               </div>
+
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Status</label>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Status</label>
                 <select value={formData.status} onChange={(e) => setFormData({ ...formData, status: e.target.value })} className="input-field">
                   <option value="">Select Status</option>
-                  {Object.values(OPERATOR_STATUS).map((s) => (
-                    <option key={s} value={s}>
-                      {s}
+                  {statusOptions.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
                     </option>
                   ))}
                 </select>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">License Type</label>
-                <select value={formData.licenseType} onChange={(e) => setFormData({ ...formData, licenseType: e.target.value })} className="input-field">
-                  <option value="">Select License</option>
-                  {Object.values(LICENSE_TYPE).map((l) => (
-                    <option key={l} value={l}>
-                      {l}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">License Number</label>
-                <input type="text" value={formData.licenseNumber} onChange={(e) => setFormData({ ...formData, licenseNumber: e.target.value })} className="input-field" />
-              </div>
+
+              {modalMode === 'create' && (
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">License Number</label>
+                  <input type="text" value={formData.licenseNumber} onChange={(e) => setFormData({ ...formData, licenseNumber: e.target.value })} className="input-field" placeholder="SIM-XXXXXXXX" />
+                </div>
+              )}
             </div>
-            <div className="flex justify-end space-x-2 mt-6">
-              <button type="button" onClick={() => setShowModal(false)} className="btn-secondary">
+
+            <div className="flex justify-end space-x-3 pt-4 border-t">
+              <button type="button" onClick={() => setShowModal(false)} className="px-6 py-2.5 border border-gray-300 rounded-lg text-gray-700 font-medium hover:bg-gray-50 transition-colors">
                 Cancel
               </button>
-              <button type="submit" className="btn-primary">
-                Update Operator
+              <button type="submit" className="btn-primary px-6 py-2.5 flex items-center space-x-2">
+                <CheckCircle size={18} />
+                <span>{modalMode === 'create' ? 'Create Operator' : 'Update Operator'}</span>
               </button>
             </div>
           </form>

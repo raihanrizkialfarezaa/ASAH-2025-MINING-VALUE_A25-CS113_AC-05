@@ -104,7 +104,7 @@ export const operatorService = {
         user: {
           select: {
             id: true,
-            name: true,
+            fullName: true,
             email: true,
           },
         },
@@ -130,7 +130,7 @@ export const operatorService = {
         user: {
           select: {
             id: true,
-            name: true,
+            fullName: true,
             email: true,
           },
         },
