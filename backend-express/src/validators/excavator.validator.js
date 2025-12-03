@@ -5,8 +5,8 @@ export const createExcavatorValidator = [
     .trim()
     .notEmpty()
     .withMessage('Excavator code is required')
-    .matches(/^[A-Z]{1,2}-\d{3,4}$/)
-    .withMessage('Excavator code must follow format: E-001 or EX-0001'),
+    .matches(/^[A-Z]{1,4}-\d{3,4}$/)
+    .withMessage('Excavator code must follow format: E-001, EX-0001 or EXC-0001'),
   body('name')
     .trim()
     .isLength({ min: 3, max: 100 })
@@ -66,6 +66,11 @@ export const updateExcavatorValidator = [
     .isLength({ max: 200 })
     .withMessage('Current location must not exceed 200 characters'),
   body('isActive').optional().isBoolean().withMessage('isActive must be a boolean'),
+  body('code')
+    .optional()
+    .trim()
+    .matches(/^[A-Z]{1,4}-\d{3,4}$/)
+    .withMessage('Excavator code must follow format: E-001, EX-0001 or EXC-0001'),
 ];
 
 export const updateExcavatorStatusValidator = [

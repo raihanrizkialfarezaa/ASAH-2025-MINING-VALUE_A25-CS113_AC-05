@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { excavatorService } from '../../services/equipmentService';
+import { miningSiteService, loadingPointService, dumpingPointService } from '../../services/locationService';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
 import Modal from '../../components/common/Modal';
 import Pagination from '../../components/common/Pagination';
@@ -69,6 +70,13 @@ const ExcavatorList = () => {
     currentLocation: '',
     remarks: '',
   });
+  const [codeEditable, setCodeEditable] = useState(false);
+  const [miningSites, setMiningSites] = useState([]);
+  const [loadingPoints, setLoadingPoints] = useState([]);
+  const [dumpingPoints, setDumpingPoints] = useState([]);
+  const [locationOptions, setLocationOptions] = useState([]);
+  const [locationType, setLocationType] = useState('ALL');
+  const [selectedLocationId, setSelectedLocationId] = useState('');
 
   const applyFiltersAndPagination = useCallback(() => {
     let filtered = [...allExcavators];
@@ -133,7 +141,19 @@ const ExcavatorList = () => {
 
   useEffect(() => {
     fetchExcavators();
+    fetchLocations();
   }, []);
+
+  useEffect(() => {
+    if (modalMode === 'create' && (!formData.currentLocation || formData.currentLocation === '') && locationOptions.length > 0) {
+      const preferred = locationOptions.find((o) => o.type === 'SITE') || locationOptions.find((o) => o.type === 'LOADING') || locationOptions.find((o) => o.type === 'DUMPING') || locationOptions[0];
+      if (preferred) {
+        setLocationType(preferred.type || 'ALL');
+        setSelectedLocationId(preferred.id);
+        setFormData((prev) => ({ ...prev, currentLocation: preferred.name || '' }));
+      }
+    }
+  }, [locationOptions]);
 
   useEffect(() => {
     applyFiltersAndPagination();
@@ -165,6 +185,28 @@ const ExcavatorList = () => {
       setAllExcavators([]);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchLocations = async () => {
+    try {
+      const [sitesRes, loadsRes, dumpsRes] = await Promise.all([miningSiteService.getAll(), loadingPointService.getAll(), dumpingPointService.getAll()]);
+      const sites = Array.isArray(sitesRes?.data) ? sitesRes.data : Array.isArray(sitesRes?.data?.data) ? sitesRes.data.data : [];
+      const loads = Array.isArray(loadsRes?.data) ? loadsRes.data : Array.isArray(loadsRes?.data?.data) ? loadsRes.data.data : [];
+      const dumps = Array.isArray(dumpsRes?.data) ? dumpsRes.data : Array.isArray(dumpsRes?.data?.data) ? dumpsRes.data.data : [];
+      setMiningSites(sites);
+      setLoadingPoints(loads);
+      setDumpingPoints(dumps);
+      const unified = [];
+      sites.forEach((s) => unified.push({ id: `site:${s.id}`, type: 'SITE', name: s.name || s.code || '', raw: s }));
+      loads.forEach((l) => unified.push({ id: `load:${l.id}`, type: 'LOADING', name: l.name || l.code || '', raw: l }));
+      dumps.forEach((d) => unified.push({ id: `dump:${d.id}`, type: 'DUMPING', name: d.name || d.code || '', raw: d }));
+      setLocationOptions(unified);
+    } catch (error) {
+      setMiningSites([]);
+      setLoadingPoints([]);
+      setDumpingPoints([]);
+      setLocationOptions([]);
     }
   };
 
@@ -220,8 +262,36 @@ const ExcavatorList = () => {
 
   const handleCreate = () => {
     setModalMode('create');
+    const generateDefaultCode = () => {
+      const prefix = 'EX';
+      const nums = allExcavators
+        .map((e) => {
+          const m = e.code?.match(/-(\d+)$/);
+          return m ? parseInt(m[1], 10) : null;
+        })
+        .filter(Boolean);
+      const max = nums.length ? Math.max(...nums) : 0;
+      let next = max + 1;
+      let code = `${prefix}-${String(next).padStart(4, '0')}`;
+      while (allExcavators.some((e) => e.code === code)) {
+        next += 1;
+        code = `${prefix}-${String(next).padStart(4, '0')}`;
+      }
+      return code;
+    };
+
+    setCodeEditable(false);
+    const generateDefaultLocation = () => {
+      if (miningSites.length) return { id: `site:${miningSites[0].id}`, name: miningSites[0].name || miningSites[0].code || '' };
+      if (loadingPoints.length) return { id: `load:${loadingPoints[0].id}`, name: loadingPoints[0].name || loadingPoints[0].code || '' };
+      if (dumpingPoints.length) return { id: `dump:${dumpingPoints[0].id}`, name: dumpingPoints[0].name || dumpingPoints[0].code || '' };
+      return { id: '', name: '' };
+    };
+    const defaultLoc = generateDefaultLocation();
+    setLocationType(defaultLoc.id.startsWith('site:') ? 'SITE' : defaultLoc.id.startsWith('load:') ? 'LOADING' : defaultLoc.id.startsWith('dump:') ? 'DUMPING' : 'ALL');
+    setSelectedLocationId(defaultLoc.id);
     setFormData({
-      code: '',
+      code: generateDefaultCode(),
       name: '',
       brand: '',
       model: '',
@@ -229,9 +299,11 @@ const ExcavatorList = () => {
       yearManufacture: '',
       productionRate: '',
       fuelConsumption: '',
-      currentLocation: '',
+      currentLocation: defaultLoc.name,
       remarks: '',
     });
+    setLocationType((prev) => (prev || 'ALL'));
+    setSelectedLocationId((prev) => prev || '');
     setShowModal(true);
   };
 
@@ -250,6 +322,14 @@ const ExcavatorList = () => {
       currentLocation: excavator.currentLocation || '',
       remarks: excavator.remarks || '',
     });
+    const match = locationOptions.find((o) => (o.name || '').toString().toLowerCase() === (excavator.currentLocation || '').toString().toLowerCase());
+    if (match) {
+      setLocationType(match.type);
+      setSelectedLocationId(match.id);
+    } else {
+      setLocationType('ALL');
+      setSelectedLocationId('');
+    }
     setShowModal(true);
   };
 
@@ -298,12 +378,24 @@ const ExcavatorList = () => {
           window.alert('Invalid code. Format examples: E-001, EX-0001, EXC-0001');
           return;
         }
+        if (allExcavators.some((e) => e.code?.toUpperCase() === payload.code)) {
+          window.alert('Excavator code already exists');
+          return;
+        }
         if (!payload.name || payload.name.length < 3) {
           window.alert('Name must be at least 3 characters long');
           return;
         }
         await excavatorService.create(payload);
       } else {
+        if (payload.code && !codeRegex.test(payload.code)) {
+          window.alert('Invalid code. Format examples: E-001, EX-0001, EXC-0001');
+          return;
+        }
+        if (payload.code && selectedExcavator && payload.code !== selectedExcavator.code && allExcavators.some((e) => e.code?.toUpperCase() === payload.code)) {
+          window.alert('Excavator code already exists');
+          return;
+        }
         if (payload.name && payload.name.length < 3) {
           window.alert('Name must be at least 3 characters long');
           return;
@@ -929,10 +1021,50 @@ const ExcavatorList = () => {
 
             <div className="grid grid-cols-2 gap-6">
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Code * <span className="text-xs font-normal text-gray-500">(e.g., EXC-0001)</span>
-                </label>
-                <input type="text" value={formData.code} onChange={(e) => setFormData({ ...formData, code: e.target.value })} className="input-field" required placeholder="EXC-0001" disabled={modalMode === 'edit'} />
+                <div className="flex items-center justify-between mb-2">
+                  <label className="text-sm font-semibold text-gray-700">Code *</label>
+                  {modalMode === 'create' ? (
+                    <div className="flex items-center space-x-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setCodeEditable((s) => !s);
+                          if (codeEditable) {
+                            const prefix = 'EX';
+                            const nums = allExcavators
+                              .map((e) => {
+                                const m = e.code?.match(/-(\d+)$/);
+                                return m ? parseInt(m[1], 10) : null;
+                              })
+                              .filter(Boolean);
+                            const max = nums.length ? Math.max(...nums) : 0;
+                            let next = max + 1;
+                            let code = `${prefix}-${String(next).padStart(4, '0')}`;
+                            while (allExcavators.some((e) => e.code === code)) {
+                              next += 1;
+                              code = `${prefix}-${String(next).padStart(4, '0')}`;
+                            }
+                            setFormData((prev) => ({ ...prev, code }));
+                          }
+                        }}
+                        className="text-xs px-2 py-1 rounded border bg-white text-gray-700 hover:bg-gray-50 transition"
+                      >
+                        {codeEditable ? 'Auto' : 'Edit'}
+                      </button>
+                    </div>
+                  ) : (
+                    <span className="text-xs font-normal text-gray-500">(e.g., EX-0001)</span>
+                  )}
+                </div>
+                <input
+                  type="text"
+                  value={formData.code}
+                  onChange={(e) => setFormData({ ...formData, code: e.target.value })}
+                  className="input-field"
+                  required
+                  placeholder="EX-0001 or EXC-0001"
+                  disabled={modalMode === 'create' && !codeEditable}
+                />
               </div>
 
               <div>
@@ -980,7 +1112,34 @@ const ExcavatorList = () => {
 
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">Current Location</label>
-                <input type="text" value={formData.currentLocation} onChange={(e) => setFormData({ ...formData, currentLocation: e.target.value })} className="input-field" placeholder="PIT-01" />
+                {locationOptions.length > 0 ? (
+                  <div className="space-y-2">
+                    <div className="flex items-center space-x-2">
+                      <select value={locationType} onChange={(e) => setLocationType(e.target.value)} className="input-field w-36">
+                        <option value="ALL">All</option>
+                        <option value="SITE">Mining Site</option>
+                        <option value="LOADING">Loading Point</option>
+                        <option value="DUMPING">Dumping Point</option>
+                      </select>
+                      <select value={selectedLocationId} onChange={(e) => { const id = e.target.value; setSelectedLocationId(id); const item = locationOptions.find((o) => o.id === id); setFormData((prev) => ({ ...prev, currentLocation: item ? item.name : '' })); }} className="input-field flex-1">
+                        <option value="">Select location (optional)</option>
+                        {locationOptions
+                          .filter((o) => locationType === 'ALL' || o.type === locationType)
+                          .map((o) => (
+                            <option key={o.id} value={o.id}>
+                              {o.name} {o.type ? `(${o.type})` : ''}
+                            </option>
+                          ))}
+                      </select>
+                    </div>
+                    {selectedLocationId === '' && (
+                      <input type="text" value={formData.currentLocation} onChange={(e) => setFormData({ ...formData, currentLocation: e.target.value })} className="input-field" placeholder="Or enter custom location (e.g., PIT-01)" />
+                    )}
+                    
+                  </div>
+                ) : (
+                  <input type="text" value={formData.currentLocation} onChange={(e) => setFormData({ ...formData, currentLocation: e.target.value })} className="input-field" placeholder="PIT-01" />
+                )}
               </div>
 
               <div>
