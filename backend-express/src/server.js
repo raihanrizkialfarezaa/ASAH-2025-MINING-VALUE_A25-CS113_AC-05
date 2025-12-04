@@ -6,8 +6,8 @@ import aiDataSyncJob from './jobs/aiDataSync.job.js';
 
 const server = app.listen(config.port, () => {
   logger.info(`Server running on port ${config.port} in ${config.env} mode`);
+  logger.info('Service updated - flexible completed activity updates');
 
-  // Start AI data sync scheduled jobs
   if (config.env !== 'test') {
     aiDataSyncJob.start();
     logger.info('AI data sync jobs started');

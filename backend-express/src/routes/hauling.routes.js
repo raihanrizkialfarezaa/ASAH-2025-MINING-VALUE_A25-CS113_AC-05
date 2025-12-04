@@ -5,6 +5,7 @@ import { authorize } from '../middleware/rbac.middleware.js';
 import { validate } from '../middleware/validate.middleware.js';
 import {
   createHaulingValidator,
+  updateHaulingValidator,
   completeLoadingValidator,
   completeDumpingValidator,
   addDelayValidator,
@@ -25,6 +26,13 @@ router.post(
   createHaulingValidator,
   validate,
   haulingController.create
+);
+router.put(
+  '/:id',
+  authorize('SUPERVISOR', 'DISPATCHER', 'ADMIN'),
+  updateHaulingValidator,
+  validate,
+  haulingController.update
 );
 router.patch(
   '/:id/complete-loading',

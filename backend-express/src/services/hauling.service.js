@@ -161,6 +161,131 @@ export const haulingService = {
     return activity;
   },
 
+  async update(id, data) {
+    const activity = await prisma.haulingActivity.findUnique({
+      where: { id },
+      include: { truck: true },
+    });
+
+    if (!activity) {
+      throw ApiError.notFound('Hauling activity not found');
+    }
+
+    const isOnlyStatusChange = Object.keys(data).length === 1 && 'status' in data;
+    const isOnlyRemarksChange = Object.keys(data).length === 1 && 'remarks' in data;
+    const isMinorUpdate = isOnlyStatusChange || isOnlyRemarksChange;
+
+    if (activity.status === HAULING_STATUS.COMPLETED && !isMinorUpdate) {
+      throw ApiError.badRequest(
+        'Cannot update completed activity. Only status and remarks can be changed.'
+      );
+    }
+
+    if (data.truckId && data.truckId !== activity.truckId) {
+      const truck = await prisma.truck.findUnique({ where: { id: data.truckId } });
+      if (!truck || !truck.isActive) {
+        throw ApiError.notFound('Truck not found or inactive');
+      }
+    }
+
+    if (data.excavatorId && data.excavatorId !== activity.excavatorId) {
+      const excavator = await prisma.excavator.findUnique({ where: { id: data.excavatorId } });
+      if (!excavator || !excavator.isActive) {
+        throw ApiError.notFound('Excavator not found or inactive');
+      }
+    }
+
+    if (data.operatorId && data.operatorId !== activity.operatorId) {
+      const operator = await prisma.operator.findUnique({ where: { id: data.operatorId } });
+      if (!operator || operator.status !== 'ACTIVE') {
+        throw ApiError.notFound('Operator not found or not active');
+      }
+    }
+
+    if (data.loadingPointId && data.loadingPointId !== activity.loadingPointId) {
+      const loadingPoint = await prisma.loadingPoint.findUnique({
+        where: { id: data.loadingPointId },
+      });
+      if (!loadingPoint || !loadingPoint.isActive) {
+        throw ApiError.notFound('Loading point not found or inactive');
+      }
+    }
+
+    if (data.dumpingPointId && data.dumpingPointId !== activity.dumpingPointId) {
+      const dumpingPoint = await prisma.dumpingPoint.findUnique({
+        where: { id: data.dumpingPointId },
+      });
+      if (!dumpingPoint || !dumpingPoint.isActive) {
+        throw ApiError.notFound('Dumping point not found or inactive');
+      }
+    }
+
+    const updateData = { ...data };
+
+    if (data.loadWeight && data.targetWeight) {
+      const loadEfficiency = (data.loadWeight / data.targetWeight) * 100;
+      updateData.loadEfficiency = parseFloat(loadEfficiency.toFixed(2));
+    }
+
+    if (data.status === HAULING_STATUS.COMPLETED && activity.status !== HAULING_STATUS.COMPLETED) {
+      const returnTime = data.returnTime ? new Date(data.returnTime) : new Date();
+      updateData.returnTime = returnTime;
+      if (activity.dumpingEndTime) {
+        updateData.returnDuration = Math.round(
+          (returnTime - new Date(activity.dumpingEndTime)) / 60000
+        );
+      }
+      if (activity.loadingStartTime) {
+        updateData.totalCycleTime = Math.round(
+          (returnTime - new Date(activity.loadingStartTime)) / 60000
+        );
+      }
+      updateData.isDelayed = false;
+    }
+
+    const updatedActivity = await prisma.$transaction(async (tx) => {
+      const updated = await tx.haulingActivity.update({
+        where: { id },
+        data: updateData,
+        include: {
+          truck: { select: { id: true, code: true, name: true } },
+          excavator: { select: { id: true, code: true, name: true } },
+          operator: {
+            include: {
+              user: { select: { id: true, fullName: true } },
+            },
+          },
+          loadingPoint: { select: { id: true, code: true, name: true } },
+          dumpingPoint: { select: { id: true, code: true, name: true } },
+          roadSegment: { select: { id: true, code: true, name: true } },
+        },
+      });
+
+      if (updateData.status && updateData.status !== activity.status) {
+        if (updateData.status === HAULING_STATUS.COMPLETED) {
+          await tx.truck.update({
+            where: { id: activity.truckId },
+            data: { status: TRUCK_STATUS.IDLE },
+          });
+        } else if (updateData.status === HAULING_STATUS.LOADING) {
+          await tx.truck.update({
+            where: { id: activity.truckId },
+            data: { status: TRUCK_STATUS.LOADING },
+          });
+        } else if (updateData.status === HAULING_STATUS.HAULING) {
+          await tx.truck.update({
+            where: { id: activity.truckId },
+            data: { status: TRUCK_STATUS.HAULING },
+          });
+        }
+      }
+
+      return updated;
+    });
+
+    return updatedActivity;
+  },
+
   async completeLoading(id, loadWeight, loadingDuration) {
     const activity = await prisma.haulingActivity.findUnique({
       where: { id },

@@ -18,6 +18,11 @@ export const haulingController = {
     res.status(201).json(ApiResponse.created(activity, 'Hauling activity created successfully'));
   }),
 
+  update: catchAsync(async (req, res) => {
+    const activity = await haulingService.update(req.params.id, req.body);
+    res.json(ApiResponse.success(activity, 'Hauling activity updated successfully'));
+  }),
+
   completeLoading: catchAsync(async (req, res) => {
     const { loadWeight, loadingDuration } = req.body;
     const activity = await haulingService.completeLoading(
