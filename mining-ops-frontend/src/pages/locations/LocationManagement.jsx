@@ -1,110 +1,197 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { miningSiteService, loadingPointService, dumpingPointService, roadSegmentService } from '../../services/locationService';
 import { excavatorService } from '../../services';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
 import Modal from '../../components/common/Modal';
 import MiningMap from '../../components/MiningMap';
-import { MapPin, ArrowRight, Activity, Plus, Edit, Trash2, Eye, Map as MapIcon, List } from 'lucide-react';
+import Pagination from '../../components/common/Pagination';
+import StatusBadge from '../../components/common/StatusBadge';
+import MapPicker from '../../components/common/MapPicker';
+import { MapPin, ArrowRight, Activity, Plus, Edit, Trash2, Eye, Map as MapIcon, List, Search, X, RefreshCw, Filter, SortAsc, SortDesc, CheckCircle, XCircle, Navigation, Layers, Route, TrendingUp } from 'lucide-react';
 
 const LocationManagement = () => {
   const [activeTab, setActiveTab] = useState('sites');
   const [viewMode, setViewMode] = useState('list');
   const [sites, setSites] = useState([]);
+  const [allSites, setAllSites] = useState([]);
   const [loadingPoints, setLoadingPoints] = useState([]);
+  const [allLoadingPoints, setAllLoadingPoints] = useState([]);
   const [dumpingPoints, setDumpingPoints] = useState([]);
+  const [allDumpingPoints, setAllDumpingPoints] = useState([]);
   const [roadSegments, setRoadSegments] = useState([]);
+  const [allRoadSegments, setAllRoadSegments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [modalMode, setModalMode] = useState('view');
   const [selectedItem, setSelectedItem] = useState(null);
   const [excavators, setExcavators] = useState([]);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
+  const [sortField, setSortField] = useState('code');
+  const [sortOrder, setSortOrder] = useState('asc');
+  const [pagination, setPagination] = useState({ page: 1, limit: 12, totalPages: 1 });
   const [formData, setFormData] = useState({
     code: '',
     name: '',
-    siteType: 'TAMBANG_TERBUKA',
+    siteType: 'PIT',
     capacity: '',
     latitude: '',
     longitude: '',
+    elevation: '',
+    description: '',
+    isActive: true,
     miningSiteId: '',
     excavatorId: '',
     coalSeam: '',
-    maxQueueSize: '',
+    coalQuality: { calorie: '', moisture: '', ash_content: '', sulfur: '' },
+    maxQueueSize: 5,
     dumpingType: 'STOCKPILE',
     currentStock: '',
     startPoint: '',
     endPoint: '',
     distance: '',
     roadCondition: 'GOOD',
-    maxSpeed: '',
+    maxSpeed: 30,
+    gradient: '',
+    lastMaintenance: '',
   });
+  const [showMapPicker, setShowMapPicker] = useState(false);
+  const [autoGenerateCode, setAutoGenerateCode] = useState(true);
+
+  const applyFiltersAndPagination = useCallback(() => {
+    let filtered = [];
+
+    if (activeTab === 'sites') {
+      filtered = [...allSites];
+    } else if (activeTab === 'loading') {
+      filtered = [...allLoadingPoints];
+    } else if (activeTab === 'dumping') {
+      filtered = [...allDumpingPoints];
+    } else if (activeTab === 'roads') {
+      filtered = [...allRoadSegments];
+    }
+
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter(
+        (item) => item.code?.toLowerCase().includes(query) || item.name?.toLowerCase().includes(query) || item.miningSite?.name?.toLowerCase().includes(query) || item.miningSite?.code?.toLowerCase().includes(query)
+      );
+    }
+
+    if (statusFilter) {
+      filtered = filtered.filter((item) => {
+        if (statusFilter === 'active') return item.isActive === true;
+        if (statusFilter === 'inactive') return item.isActive === false;
+        return true;
+      });
+    }
+
+    filtered.sort((a, b) => {
+      let aVal = a[sortField];
+      let bVal = b[sortField];
+
+      if (typeof aVal === 'string') aVal = aVal?.toLowerCase() || '';
+      if (typeof bVal === 'string') bVal = bVal?.toLowerCase() || '';
+
+      if (aVal < bVal) return sortOrder === 'asc' ? -1 : 1;
+      if (aVal > bVal) return sortOrder === 'asc' ? 1 : -1;
+      return 0;
+    });
+
+    const totalPages = Math.ceil(filtered.length / pagination.limit);
+    const startIndex = (pagination.page - 1) * pagination.limit;
+    const paginatedData = filtered.slice(startIndex, startIndex + pagination.limit);
+
+    if (activeTab === 'sites') setSites(paginatedData);
+    else if (activeTab === 'loading') setLoadingPoints(paginatedData);
+    else if (activeTab === 'dumping') setDumpingPoints(paginatedData);
+    else if (activeTab === 'roads') setRoadSegments(paginatedData);
+
+    setPagination((prev) => ({ ...prev, totalPages }));
+  }, [activeTab, allSites, allLoadingPoints, allDumpingPoints, allRoadSegments, searchQuery, statusFilter, sortField, sortOrder, pagination.limit, pagination.page]);
 
   useEffect(() => {
     fetchData();
-  }, [activeTab, viewMode]);
+    fetchExcavators();
+  }, []);
 
   useEffect(() => {
-    const loadExcavators = async () => {
-      try {
-        const res = await excavatorService.getAll();
-        setExcavators(Array.isArray(res.data) ? res.data : []);
-      } catch (error) {
-        console.error('Failed to fetch excavators:', error);
-      }
-    };
-    loadExcavators();
-  }, []);
+    applyFiltersAndPagination();
+  }, [applyFiltersAndPagination]);
+
+  const fetchExcavators = async () => {
+    try {
+      const res = await excavatorService.getAll();
+      setExcavators(Array.isArray(res.data) ? res.data : []);
+    } catch (error) {
+      console.error('Failed to fetch excavators:', error);
+    }
+  };
 
   const fetchData = async () => {
     setLoading(true);
     try {
-      if (viewMode === 'map') {
-        const [sitesRes, loadingRes, dumpingRes, roadsRes] = await Promise.all([miningSiteService.getAll(), loadingPointService.getAll(), dumpingPointService.getAll(), roadSegmentService.getAll()]);
-        setSites(Array.isArray(sitesRes.data) ? sitesRes.data : []);
-        setLoadingPoints(Array.isArray(loadingRes.data) ? loadingRes.data : []);
-        setDumpingPoints(Array.isArray(dumpingRes.data) ? dumpingRes.data : []);
-        setRoadSegments(Array.isArray(roadsRes.data) ? roadsRes.data : []);
-      } else {
-        if (activeTab === 'sites') {
-          const res = await miningSiteService.getAll();
-          setSites(Array.isArray(res.data) ? res.data : []);
-        } else if (activeTab === 'loading') {
-          const res = await loadingPointService.getAll();
-          setLoadingPoints(Array.isArray(res.data) ? res.data : []);
-        } else if (activeTab === 'dumping') {
-          const res = await dumpingPointService.getAll();
-          setDumpingPoints(Array.isArray(res.data) ? res.data : []);
-        } else if (activeTab === 'roads') {
-          const res = await roadSegmentService.getAll();
-          setRoadSegments(Array.isArray(res.data) ? res.data : []);
-        }
-      }
+      const [sitesRes, loadingRes, dumpingRes, roadsRes] = await Promise.all([
+        miningSiteService.getAll({ limit: 10000 }),
+        loadingPointService.getAll({ limit: 10000 }),
+        dumpingPointService.getAll({ limit: 10000 }),
+        roadSegmentService.getAll({ limit: 10000 }),
+      ]);
+
+      setAllSites(Array.isArray(sitesRes?.data) ? sitesRes.data : []);
+      setAllLoadingPoints(Array.isArray(loadingRes?.data) ? loadingRes.data : []);
+      setAllDumpingPoints(Array.isArray(dumpingRes?.data) ? dumpingRes.data : []);
+      setAllRoadSegments(Array.isArray(roadsRes?.data) ? roadsRes.data : []);
     } catch (error) {
       console.error('Failed to fetch data:', error);
+      console.error('Error details:', error.response?.data);
     } finally {
       setLoading(false);
     }
   };
 
+  const generateCode = (type) => {
+    const prefix = {
+      sites: 'SITE',
+      loading: 'LP',
+      dumping: 'DP',
+      roads: 'RS',
+    }[type];
+    const timestamp = Date.now().toString().slice(-6);
+    const random = Math.floor(Math.random() * 100)
+      .toString()
+      .padStart(2, '0');
+    return `${prefix}-${timestamp}${random}`;
+  };
+
   const handleCreate = () => {
     setModalMode('create');
+    setAutoGenerateCode(true);
+    const generatedCode = generateCode(activeTab);
     setFormData({
-      code: '',
+      code: generatedCode,
       name: '',
-      siteType: 'TAMBANG_TERBUKA',
+      siteType: 'PIT',
       capacity: '',
       latitude: '',
       longitude: '',
+      elevation: '',
+      description: '',
+      isActive: true,
       miningSiteId: '',
       excavatorId: '',
       coalSeam: '',
-      maxQueueSize: '',
+      coalQuality: { calorie: '', moisture: '', ash_content: '', sulfur: '' },
+      maxQueueSize: 5,
       dumpingType: 'STOCKPILE',
       currentStock: '',
       startPoint: '',
       endPoint: '',
       distance: '',
       roadCondition: 'GOOD',
-      maxSpeed: '',
+      maxSpeed: 30,
+      gradient: '',
+      lastMaintenance: '',
     });
     setShowModal(true);
   };
@@ -112,25 +199,63 @@ const LocationManagement = () => {
   const handleEdit = (item) => {
     setModalMode('edit');
     setSelectedItem(item);
-    setFormData({
+    setAutoGenerateCode(false);
+
+    const baseData = {
       code: item.code || '',
       name: item.name || '',
-      siteType: item.siteType || 'TAMBANG_TERBUKA',
-      capacity: item.capacity || '',
+      isActive: item.isActive !== undefined ? item.isActive : true,
       latitude: item.latitude || '',
       longitude: item.longitude || '',
-      miningSiteId: item.miningSiteId || '',
-      excavatorId: item.excavatorId || '',
-      coalSeam: item.coalSeam || '',
-      maxQueueSize: item.maxQueueSize || '',
-      dumpingType: item.dumpingType || 'STOCKPILE',
-      currentStock: item.currentStock || '',
-      startPoint: item.startPoint || '',
-      endPoint: item.endPoint || '',
-      distance: item.distance || '',
-      roadCondition: item.roadCondition || 'GOOD',
-      maxSpeed: item.maxSpeed || '',
-    });
+    };
+
+    if (activeTab === 'sites') {
+      setFormData({
+        ...baseData,
+        siteType: item.siteType || 'PIT',
+        capacity: item.capacity || '',
+        elevation: item.elevation || '',
+        description: item.description || '',
+        coalQuality: { calorie: '', moisture: '', ash_content: '', sulfur: '' },
+      });
+    } else if (activeTab === 'loading') {
+      const existingCoalQuality = item.coalQuality || {};
+      setFormData({
+        ...baseData,
+        miningSiteId: item.miningSiteId || '',
+        excavatorId: item.excavatorId || '',
+        coalSeam: item.coalSeam || '',
+        coalQuality: {
+          calorie: existingCoalQuality.calorie || '',
+          moisture: existingCoalQuality.moisture || '',
+          ash_content: existingCoalQuality.ash_content || '',
+          sulfur: existingCoalQuality.sulfur || '',
+        },
+        maxQueueSize: item.maxQueueSize || 5,
+      });
+    } else if (activeTab === 'dumping') {
+      setFormData({
+        ...baseData,
+        miningSiteId: item.miningSiteId || '',
+        dumpingType: item.dumpingType || 'STOCKPILE',
+        capacity: item.capacity || '',
+        currentStock: item.currentStock || '',
+        coalQuality: { calorie: '', moisture: '', ash_content: '', sulfur: '' },
+      });
+    } else if (activeTab === 'roads') {
+      setFormData({
+        ...baseData,
+        miningSiteId: item.miningSiteId || '',
+        startPoint: item.startPoint || '',
+        endPoint: item.endPoint || '',
+        distance: item.distance || '',
+        roadCondition: item.roadCondition || 'GOOD',
+        maxSpeed: item.maxSpeed || 30,
+        gradient: item.gradient || '',
+        lastMaintenance: item.lastMaintenance ? new Date(item.lastMaintenance).toISOString().split('T')[0] : '',
+        coalQuality: { calorie: '', moisture: '', ash_content: '', sulfur: '' },
+      });
+    }
     setShowModal(true);
   };
 
@@ -150,10 +275,13 @@ const LocationManagement = () => {
           code: formData.code.trim(),
           name: formData.name.trim(),
           siteType: formData.siteType,
+          isActive: formData.isActive,
         };
         if (formData.capacity) payload.capacity = parseFloat(formData.capacity);
         if (formData.latitude) payload.latitude = parseFloat(formData.latitude);
         if (formData.longitude) payload.longitude = parseFloat(formData.longitude);
+        if (formData.elevation) payload.elevation = parseFloat(formData.elevation);
+        if (formData.description) payload.description = formData.description.trim();
 
         if (modalMode === 'create') {
           await miningSiteService.create(payload);
@@ -165,12 +293,22 @@ const LocationManagement = () => {
           code: formData.code.trim(),
           name: formData.name.trim(),
           miningSiteId: formData.miningSiteId,
+          isActive: formData.isActive,
+          maxQueueSize: parseInt(formData.maxQueueSize) || 5,
         };
         if (formData.excavatorId) payload.excavatorId = formData.excavatorId;
         if (formData.coalSeam) payload.coalSeam = formData.coalSeam.trim();
-        if (formData.maxQueueSize) payload.maxQueueSize = parseInt(formData.maxQueueSize);
         if (formData.latitude) payload.latitude = parseFloat(formData.latitude);
         if (formData.longitude) payload.longitude = parseFloat(formData.longitude);
+
+        if (formData.coalQuality && (formData.coalQuality.calorie || formData.coalQuality.moisture || formData.coalQuality.ash_content || formData.coalQuality.sulfur)) {
+          const cq = {};
+          if (formData.coalQuality.calorie) cq.calorie = parseFloat(formData.coalQuality.calorie);
+          if (formData.coalQuality.moisture) cq.moisture = parseFloat(formData.coalQuality.moisture);
+          if (formData.coalQuality.ash_content) cq.ash_content = parseFloat(formData.coalQuality.ash_content);
+          if (formData.coalQuality.sulfur) cq.sulfur = parseFloat(formData.coalQuality.sulfur);
+          payload.coalQuality = cq;
+        }
 
         if (modalMode === 'create') {
           await loadingPointService.create(payload);
@@ -183,6 +321,7 @@ const LocationManagement = () => {
           name: formData.name.trim(),
           miningSiteId: formData.miningSiteId,
           dumpingType: formData.dumpingType,
+          isActive: formData.isActive,
         };
         if (formData.capacity) payload.capacity = parseFloat(formData.capacity);
         if (formData.currentStock) payload.currentStock = parseFloat(formData.currentStock);
@@ -201,10 +340,13 @@ const LocationManagement = () => {
           miningSiteId: formData.miningSiteId,
           distance: parseFloat(formData.distance),
           roadCondition: formData.roadCondition,
+          isActive: formData.isActive,
         };
         if (formData.startPoint) payload.startPoint = formData.startPoint.trim();
         if (formData.endPoint) payload.endPoint = formData.endPoint.trim();
         if (formData.maxSpeed) payload.maxSpeed = parseInt(formData.maxSpeed);
+        if (formData.gradient) payload.gradient = parseFloat(formData.gradient);
+        if (formData.lastMaintenance) payload.lastMaintenance = new Date(formData.lastMaintenance).toISOString();
 
         if (modalMode === 'create') {
           await roadSegmentService.create(payload);
@@ -248,11 +390,28 @@ const LocationManagement = () => {
   };
 
   const tabs = [
-    { id: 'sites', label: 'Mining Sites', icon: MapPin },
-    { id: 'loading', label: 'Loading Points', icon: Activity },
-    { id: 'dumping', label: 'Dumping Points', icon: Activity },
-    { id: 'roads', label: 'Road Segments', icon: ArrowRight },
+    { id: 'sites', label: 'Mining Sites', icon: MapPin, count: allSites.length },
+    { id: 'loading', label: 'Loading Points', icon: Activity, count: allLoadingPoints.length },
+    { id: 'dumping', label: 'Dumping Points', icon: Layers, count: allDumpingPoints.length },
+    { id: 'roads', label: 'Road Segments', icon: Route, count: allRoadSegments.length },
   ];
+
+  const handleSort = (field) => {
+    if (sortField === field) {
+      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortOrder('asc');
+    }
+  };
+
+  const handleClearFilters = () => {
+    setSearchQuery('');
+    setStatusFilter('');
+    setPagination((prev) => ({ ...prev, page: 1 }));
+  };
+
+  const activeFiltersCount = [searchQuery, statusFilter].filter(Boolean).length;
 
   if (loading) {
     return <LoadingSpinner fullScreen />;
@@ -271,70 +430,257 @@ const LocationManagement = () => {
     return `${label} Details`;
   };
 
+  const getSiteTypeLabel = (type) => {
+    const labels = {
+      PIT: 'Pit',
+      STOCKPILE: 'Stockpile',
+      CRUSHER: 'Crusher',
+      PORT: 'Port',
+      COAL_HAULING_ROAD: 'Coal Hauling Road',
+      ROM_PAD: 'ROM Pad',
+    };
+    return labels[type] || type;
+  };
+
+  const getRoadConditionColor = (condition) => {
+    const colors = {
+      EXCELLENT: 'green',
+      GOOD: 'blue',
+      FAIR: 'yellow',
+      POOR: 'orange',
+      CRITICAL: 'red',
+    };
+    return colors[condition] || 'gray';
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold">Location Management</h1>
-        <div className="flex space-x-2">
-          <div className="bg-white rounded-lg shadow p-1 flex">
-            <button onClick={() => setViewMode('list')} className={`p-2 rounded ${viewMode === 'list' ? 'bg-blue-100 text-blue-600' : 'text-gray-600 hover:bg-gray-100'}`} title="List View">
-              <List size={20} />
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900 flex items-center space-x-3">
+            <MapIcon className="text-blue-600" size={36} />
+            <span>Location Management</span>
+          </h1>
+          <p className="text-sm text-gray-500 mt-1">Manage mining sites, loading points, dumping points, and road segments</p>
+        </div>
+        <div className="flex space-x-3">
+          <button onClick={fetchData} className="bg-white hover:bg-gray-50 px-4 py-2 rounded-lg border shadow-sm text-gray-700 font-medium transition-colors flex items-center space-x-2">
+            <RefreshCw size={18} />
+            <span>Refresh</span>
+          </button>
+          <div className="bg-white rounded-lg shadow-sm p-1 flex border">
+            <button onClick={() => setViewMode('list')} className={`px-3 py-2 rounded flex items-center space-x-1.5 transition-colors ${viewMode === 'list' ? 'bg-blue-100 text-blue-600' : 'text-gray-600 hover:bg-gray-100'}`}>
+              <List size={18} />
+              <span className="text-sm font-medium">List</span>
             </button>
-            <button onClick={() => setViewMode('map')} className={`p-2 rounded ${viewMode === 'map' ? 'bg-blue-100 text-blue-600' : 'text-gray-600 hover:bg-gray-100'}`} title="Map View">
-              <MapIcon size={20} />
+            <button onClick={() => setViewMode('map')} className={`px-3 py-2 rounded flex items-center space-x-1.5 transition-colors ${viewMode === 'map' ? 'bg-blue-100 text-blue-600' : 'text-gray-600 hover:bg-gray-100'}`}>
+              <MapIcon size={18} />
+              <span className="text-sm font-medium">Map</span>
             </button>
           </div>
-          <button onClick={handleCreate} className="btn-primary flex items-center space-x-2">
+          <button onClick={handleCreate} className="btn-primary flex items-center space-x-2 px-5 py-2.5">
             <Plus size={20} />
             <span>Add New</span>
           </button>
         </div>
       </div>
 
-      <div className="flex space-x-2 border-b">
-        {tabs.map((tab) => {
-          const Icon = tab.icon;
-          return (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center space-x-2 px-4 py-2 border-b-2 transition-colors ${activeTab === tab.id ? 'border-primary-600 text-primary-600' : 'border-transparent text-gray-600 hover:text-gray-900'}`}
-            >
-              <Icon size={18} />
-              <span>{tab.label}</span>
-            </button>
-          );
-        })}
+      <div className="grid grid-cols-4 gap-4">
+        <div className="card bg-gradient-to-br from-blue-50 to-cyan-50 border-blue-200">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-gray-600 mb-1">Mining Sites</p>
+              <p className="text-3xl font-bold text-blue-600">{allSites.length}</p>
+            </div>
+            <div className="p-3 bg-blue-100 rounded-xl">
+              <MapPin className="text-blue-600" size={28} />
+            </div>
+          </div>
+        </div>
+        <div className="card bg-gradient-to-br from-green-50 to-emerald-50 border-green-200">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-gray-600 mb-1">Loading Points</p>
+              <p className="text-3xl font-bold text-green-600">{allLoadingPoints.length}</p>
+            </div>
+            <div className="p-3 bg-green-100 rounded-xl">
+              <Activity className="text-green-600" size={28} />
+            </div>
+          </div>
+        </div>
+        <div className="card bg-gradient-to-br from-purple-50 to-pink-50 border-purple-200">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-gray-600 mb-1">Dumping Points</p>
+              <p className="text-3xl font-bold text-purple-600">{allDumpingPoints.length}</p>
+            </div>
+            <div className="p-3 bg-purple-100 rounded-xl">
+              <Layers className="text-purple-600" size={28} />
+            </div>
+          </div>
+        </div>
+        <div className="card bg-gradient-to-br from-orange-50 to-amber-50 border-orange-200">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-gray-600 mb-1">Road Segments</p>
+              <p className="text-3xl font-bold text-orange-600">{allRoadSegments.length}</p>
+            </div>
+            <div className="p-3 bg-orange-100 rounded-xl">
+              <Route className="text-orange-600" size={28} />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="bg-white border-b">
+        <div className="flex space-x-1">
+          {tabs.map((tab) => {
+            const Icon = tab.icon;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => {
+                  setActiveTab(tab.id);
+                  setPagination((prev) => ({ ...prev, page: 1 }));
+                }}
+                className={`flex items-center space-x-2 px-5 py-3 border-b-2 transition-all font-medium ${
+                  activeTab === tab.id ? 'border-blue-600 text-blue-600 bg-blue-50' : 'border-transparent text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                }`}
+              >
+                <Icon size={18} />
+                <span>{tab.label}</span>
+                <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${activeTab === tab.id ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700'}`}>{tab.count}</span>
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       {viewMode === 'map' ? (
-        <div className="card p-4 mt-4">
-          <h2 className="text-xl font-bold mb-4">Geospatial View</h2>
-          <MiningMap sites={sites} loadingPoints={loadingPoints} dumpingPoints={dumpingPoints} roads={roadSegments} />
+        <div className="card p-6">
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-xl font-bold flex items-center space-x-2">
+              <Navigation className="text-blue-600" size={24} />
+              <span>Geospatial View</span>
+            </h2>
+            <div className="text-sm text-gray-600">
+              Showing {allSites.length} sites, {allLoadingPoints.length} loading points, {allDumpingPoints.length} dumping points
+            </div>
+          </div>
+          <MiningMap sites={allSites} loadingPoints={allLoadingPoints} dumpingPoints={allDumpingPoints} roads={allRoadSegments} />
         </div>
       ) : (
         <>
+          <div className="card">
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="flex-1 flex items-center space-x-3">
+                  <div className="relative" style={{ minWidth: '360px', maxWidth: '480px', flex: '1' }}>
+                    <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-500" size={20} />
+                    <input
+                      type="text"
+                      placeholder="Search by code, name, or mining site..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      style={{
+                        width: '100%',
+                        height: '44px',
+                        paddingLeft: '44px',
+                        paddingRight: '44px',
+                        fontSize: '14px',
+                        color: '#1f2937',
+                        backgroundColor: '#ffffff',
+                        border: '1px solid #d1d5db',
+                        borderRadius: '8px',
+                        outline: 'none',
+                        boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
+                      }}
+                      onFocus={(e) => {
+                        e.target.style.borderColor = '#3b82f6';
+                        e.target.style.boxShadow = '0 0 0 3px rgba(59,130,246,0.1)';
+                      }}
+                      onBlur={(e) => {
+                        e.target.style.borderColor = '#d1d5db';
+                        e.target.style.boxShadow = '0 1px 2px rgba(0,0,0,0.05)';
+                      }}
+                    />
+                    {searchQuery && (
+                      <button onClick={() => setSearchQuery('')} className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                        <X size={18} />
+                      </button>
+                    )}
+                  </div>
+
+                  <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="input-field min-w-[180px]">
+                    <option value="">All Status</option>
+                    <option value="active">Active</option>
+                    <option value="inactive">Inactive</option>
+                  </select>
+
+                  {activeFiltersCount > 0 && (
+                    <button onClick={handleClearFilters} className="flex items-center space-x-1 px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-lg border border-red-200 transition-colors">
+                      <X size={16} />
+                      <span>Clear ({activeFiltersCount})</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
           {activeTab === 'sites' && (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {sites.map((site) => (
-                <div key={site.id} className="card">
-                  <div className="flex justify-between items-start mb-2">
-                    <h3 className="font-bold text-lg">{site.name}</h3>
+                <div key={site.id} className="card hover:shadow-lg transition-shadow border-l-4 border-blue-500">
+                  <div className="flex justify-between items-start mb-3">
+                    <div className="flex items-start space-x-2">
+                      <MapPin className="text-blue-600 mt-1" size={20} />
+                      <div>
+                        <h3 className="font-bold text-lg text-gray-900">{site.name}</h3>
+                        <p className="text-xs text-gray-500">{site.code}</p>
+                      </div>
+                    </div>
                     <div className="flex space-x-1">
-                      <button onClick={() => handleView(site)} className="text-blue-600 hover:text-blue-800">
+                      <button onClick={() => handleView(site)} className="p-1.5 text-blue-600 hover:bg-blue-50 rounded transition-colors" title="View">
                         <Eye size={16} />
                       </button>
-                      <button onClick={() => handleEdit(site)} className="text-green-600 hover:text-green-800">
+                      <button onClick={() => handleEdit(site)} className="p-1.5 text-green-600 hover:bg-green-50 rounded transition-colors" title="Edit">
                         <Edit size={16} />
                       </button>
-                      <button onClick={() => handleDelete(site.id)} className="text-red-600 hover:text-red-800">
+                      <button onClick={() => handleDelete(site.id)} className="p-1.5 text-red-600 hover:bg-red-50 rounded transition-colors" title="Delete">
                         <Trash2 size={16} />
                       </button>
                     </div>
                   </div>
-                  <p className="text-sm text-gray-600 mb-1">Code: {site.code}</p>
-                  <p className="text-sm text-gray-600 mb-1">Type: {site.siteType}</p>
-                  <p className="text-sm text-gray-600">Capacity: {site.capacity || '-'} ton/day</p>
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-gray-600">Type:</span>
+                      <span className="text-sm font-semibold text-gray-900">{getSiteTypeLabel(site.siteType)}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-gray-600">Status:</span>
+                      <StatusBadge status={site.isActive ? 'active' : 'inactive'} label={site.isActive ? 'Active' : 'Inactive'} />
+                    </div>
+                    {site.capacity && (
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-gray-600">Capacity:</span>
+                        <span className="text-sm font-medium text-blue-600">{site.capacity.toFixed(2)} ton/day</span>
+                      </div>
+                    )}
+                    {site.elevation && (
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-gray-600">Elevation:</span>
+                        <span className="text-sm text-gray-700">{site.elevation.toFixed(2)} m</span>
+                      </div>
+                    )}
+                    {site.latitude && site.longitude && (
+                      <div className="flex items-center justify-between pt-2 border-t">
+                        <span className="text-xs text-gray-500">Coordinates:</span>
+                        <span className="text-xs text-gray-600">
+                          {site.latitude.toFixed(4)}, {site.longitude.toFixed(4)}
+                        </span>
+                      </div>
+                    )}
+                  </div>
                 </div>
               ))}
             </div>
@@ -343,24 +689,72 @@ const LocationManagement = () => {
           {activeTab === 'loading' && (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {loadingPoints.map((point) => (
-                <div key={point.id} className="card">
-                  <div className="flex justify-between items-start mb-2">
-                    <h3 className="font-bold text-lg">{point.name}</h3>
+                <div key={point.id} className="card hover:shadow-lg transition-shadow border-l-4 border-green-500">
+                  <div className="flex justify-between items-start mb-3">
+                    <div className="flex items-start space-x-2">
+                      <Activity className="text-green-600 mt-1" size={20} />
+                      <div>
+                        <h3 className="font-bold text-lg text-gray-900">{point.name}</h3>
+                        <p className="text-xs text-gray-500">{point.code}</p>
+                      </div>
+                    </div>
                     <div className="flex space-x-1">
-                      <button onClick={() => handleView(point)} className="text-blue-600 hover:text-blue-800">
+                      <button onClick={() => handleView(point)} className="p-1.5 text-blue-600 hover:bg-blue-50 rounded transition-colors" title="View">
                         <Eye size={16} />
                       </button>
-                      <button onClick={() => handleEdit(point)} className="text-green-600 hover:text-green-800">
+                      <button onClick={() => handleEdit(point)} className="p-1.5 text-green-600 hover:bg-green-50 rounded transition-colors" title="Edit">
                         <Edit size={16} />
                       </button>
-                      <button onClick={() => handleDelete(point.id)} className="text-red-600 hover:text-red-800">
+                      <button onClick={() => handleDelete(point.id)} className="p-1.5 text-red-600 hover:bg-red-50 rounded transition-colors" title="Delete">
                         <Trash2 size={16} />
                       </button>
                     </div>
                   </div>
-                  <p className="text-sm text-gray-600 mb-1">Code: {point.code}</p>
-                  <p className="text-sm text-gray-600 mb-1">Mining Site: {point.miningSite?.name || '-'}</p>
-                  <p className="text-sm text-gray-600">Max Queue: {point.maxQueueSize}</p>
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-gray-600">Mining Site:</span>
+                      <span className="text-sm font-semibold text-gray-900 truncate max-w-[180px]">{point.miningSite?.name || '-'}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-gray-600">Status:</span>
+                      <StatusBadge status={point.isActive ? 'active' : 'inactive'} label={point.isActive ? 'Active' : 'Inactive'} />
+                    </div>
+                    {point.excavator && (
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-gray-600">Excavator:</span>
+                        <span className="text-sm text-gray-700">{point.excavator.code}</span>
+                      </div>
+                    )}
+                    {point.coalSeam && (
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-gray-600">Coal Seam:</span>
+                        <span className="text-sm font-medium text-green-600">{point.coalSeam}</span>
+                      </div>
+                    )}
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-gray-600">Max Queue:</span>
+                      <span className="text-sm text-gray-700">{point.maxQueueSize} trucks</span>
+                    </div>
+                    {point.coalQuality && (
+                      <div className="pt-2 border-t">
+                        <p className="text-xs text-gray-500 mb-1">Coal Quality:</p>
+                        <div className="grid grid-cols-2 gap-1 text-xs">
+                          {point.coalQuality.calorie && <span>Cal: {point.coalQuality.calorie.toFixed(0)}</span>}
+                          {point.coalQuality.moisture && <span>Mois: {point.coalQuality.moisture.toFixed(1)}%</span>}
+                          {point.coalQuality.ash_content && <span>Ash: {point.coalQuality.ash_content.toFixed(1)}%</span>}
+                          {point.coalQuality.sulfur && <span>Sul: {point.coalQuality.sulfur.toFixed(2)}%</span>}
+                        </div>
+                      </div>
+                    )}
+                    {point.latitude && point.longitude && (
+                      <div className="flex items-center justify-between pt-2 border-t">
+                        <span className="text-xs text-gray-500">Coordinates:</span>
+                        <span className="text-xs text-gray-600">
+                          {point.latitude.toFixed(4)}, {point.longitude.toFixed(4)}
+                        </span>
+                      </div>
+                    )}
+                  </div>
                 </div>
               ))}
             </div>
@@ -369,130 +763,548 @@ const LocationManagement = () => {
           {activeTab === 'dumping' && (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {dumpingPoints.map((point) => (
-                <div key={point.id} className="card">
-                  <div className="flex justify-between items-start mb-2">
-                    <h3 className="font-bold text-lg">{point.name}</h3>
+                <div key={point.id} className="card hover:shadow-lg transition-shadow border-l-4 border-purple-500">
+                  <div className="flex justify-between items-start mb-3">
+                    <div className="flex items-start space-x-2">
+                      <Layers className="text-purple-600 mt-1" size={20} />
+                      <div>
+                        <h3 className="font-bold text-lg text-gray-900">{point.name}</h3>
+                        <p className="text-xs text-gray-500">{point.code}</p>
+                      </div>
+                    </div>
                     <div className="flex space-x-1">
-                      <button onClick={() => handleView(point)} className="text-blue-600 hover:text-blue-800">
+                      <button onClick={() => handleView(point)} className="p-1.5 text-blue-600 hover:bg-blue-50 rounded transition-colors" title="View">
                         <Eye size={16} />
                       </button>
-                      <button onClick={() => handleEdit(point)} className="text-green-600 hover:text-green-800">
+                      <button onClick={() => handleEdit(point)} className="p-1.5 text-green-600 hover:bg-green-50 rounded transition-colors" title="Edit">
                         <Edit size={16} />
                       </button>
-                      <button onClick={() => handleDelete(point.id)} className="text-red-600 hover:text-red-800">
+                      <button onClick={() => handleDelete(point.id)} className="p-1.5 text-red-600 hover:bg-red-50 rounded transition-colors" title="Delete">
                         <Trash2 size={16} />
                       </button>
                     </div>
                   </div>
-                  <p className="text-sm text-gray-600 mb-1">Code: {point.code}</p>
-                  <p className="text-sm text-gray-600 mb-1">Type: {point.dumpingType}</p>
-                  <p className="text-sm text-gray-600">Current Stock: {point.currentStock} ton</p>
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-gray-600">Mining Site:</span>
+                      <span className="text-sm font-semibold text-gray-900 truncate max-w-[180px]">{point.miningSite?.name || '-'}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-gray-600">Type:</span>
+                      <span className="text-sm font-medium text-purple-600">{point.dumpingType}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-gray-600">Status:</span>
+                      <StatusBadge status={point.isActive ? 'active' : 'inactive'} label={point.isActive ? 'Active' : 'Inactive'} />
+                    </div>
+                    {point.capacity && (
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-gray-600">Capacity:</span>
+                        <span className="text-sm text-gray-700">{point.capacity.toFixed(2)} ton</span>
+                      </div>
+                    )}
+                    {point.currentStock !== null && point.currentStock !== undefined && (
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-gray-600">Current Stock:</span>
+                        <span className="text-sm font-semibold text-purple-600">{point.currentStock.toFixed(2)} ton</span>
+                      </div>
+                    )}
+                    {point.capacity && point.currentStock !== null && (
+                      <div className="pt-2">
+                        <div className="flex justify-between text-xs text-gray-600 mb-1">
+                          <span>Utilization</span>
+                          <span>{((point.currentStock / point.capacity) * 100).toFixed(1)}%</span>
+                        </div>
+                        <div className="w-full bg-gray-200 rounded-full h-2">
+                          <div className="bg-purple-600 h-2 rounded-full transition-all" style={{ width: `${Math.min((point.currentStock / point.capacity) * 100, 100)}%` }}></div>
+                        </div>
+                      </div>
+                    )}
+                    {point.latitude && point.longitude && (
+                      <div className="flex items-center justify-between pt-2 border-t">
+                        <span className="text-xs text-gray-500">Coordinates:</span>
+                        <span className="text-xs text-gray-600">
+                          {point.latitude.toFixed(4)}, {point.longitude.toFixed(4)}
+                        </span>
+                      </div>
+                    )}
+                  </div>
                 </div>
               ))}
             </div>
           )}
 
           {activeTab === 'roads' && (
-            <div className="grid grid-cols-1 gap-4">
+            <div className="space-y-3">
               {roadSegments.map((road) => (
-                <div key={road.id} className="card">
+                <div key={road.id} className="card hover:shadow-lg transition-shadow border-l-4 border-orange-500">
                   <div className="flex justify-between items-start">
-                    <div>
-                      <h3 className="font-bold text-lg mb-2">{road.name}</h3>
-                      <p className="text-sm text-gray-600 mb-1">Code: {road.code}</p>
-                      <p className="text-sm text-gray-600 mb-1">Distance: {road.distance} km</p>
-                    </div>
-                    <div className="flex flex-col items-end">
-                      <div className="flex space-x-1 mb-2">
-                        <button onClick={() => handleView(road)} className="text-blue-600 hover:text-blue-800">
-                          <Eye size={16} />
-                        </button>
-                        <button onClick={() => handleEdit(road)} className="text-green-600 hover:text-green-800">
-                          <Edit size={16} />
-                        </button>
-                        <button onClick={() => handleDelete(road.id)} className="text-red-600 hover:text-red-800">
-                          <Trash2 size={16} />
-                        </button>
+                    <div className="flex-1">
+                      <div className="flex items-start space-x-2 mb-3">
+                        <Route className="text-orange-600 mt-1" size={20} />
+                        <div>
+                          <h3 className="font-bold text-lg text-gray-900">{road.name}</h3>
+                          <p className="text-xs text-gray-500">{road.code}</p>
+                        </div>
                       </div>
-                      <p className="text-sm text-gray-600 mb-1">Max Speed: {road.maxSpeed} km/h</p>
-                      <p className="text-sm text-gray-600">Condition: {road.roadCondition}</p>
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        <div>
+                          <p className="text-xs text-gray-500 mb-1">Mining Site</p>
+                          <p className="text-sm font-semibold text-gray-900">{road.miningSite?.name || '-'}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-gray-500 mb-1">Distance</p>
+                          <p className="text-sm font-semibold text-orange-600">{road.distance} km</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-gray-500 mb-1">Max Speed</p>
+                          <p className="text-sm text-gray-700">{road.maxSpeed} km/h</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-gray-500 mb-1">Condition</p>
+                          <StatusBadge status={getRoadConditionColor(road.roadCondition)} label={road.roadCondition} />
+                        </div>
+                        {road.startPoint && (
+                          <div>
+                            <p className="text-xs text-gray-500 mb-1">Start Point</p>
+                            <p className="text-sm text-gray-700">{road.startPoint}</p>
+                          </div>
+                        )}
+                        {road.endPoint && (
+                          <div>
+                            <p className="text-xs text-gray-500 mb-1">End Point</p>
+                            <p className="text-sm text-gray-700">{road.endPoint}</p>
+                          </div>
+                        )}
+                        {road.gradient !== null && road.gradient !== undefined && (
+                          <div>
+                            <p className="text-xs text-gray-500 mb-1">Gradient</p>
+                            <p className="text-sm text-gray-700">{road.gradient.toFixed(2)}°</p>
+                          </div>
+                        )}
+                        <div>
+                          <p className="text-xs text-gray-500 mb-1">Status</p>
+                          <StatusBadge status={road.isActive ? 'active' : 'inactive'} label={road.isActive ? 'Active' : 'Inactive'} />
+                        </div>
+                      </div>
+                      {road.lastMaintenance && (
+                        <div className="mt-3 pt-3 border-t">
+                          <p className="text-xs text-gray-500">
+                            Last Maintenance: <span className="text-gray-700">{new Date(road.lastMaintenance).toLocaleDateString()}</span>
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex flex-col space-y-1 ml-4">
+                      <button onClick={() => handleView(road)} className="p-2 text-blue-600 hover:bg-blue-50 rounded transition-colors" title="View">
+                        <Eye size={18} />
+                      </button>
+                      <button onClick={() => handleEdit(road)} className="p-2 text-green-600 hover:bg-green-50 rounded transition-colors" title="Edit">
+                        <Edit size={18} />
+                      </button>
+                      <button onClick={() => handleDelete(road.id)} className="p-2 text-red-600 hover:bg-red-50 rounded transition-colors" title="Delete">
+                        <Trash2 size={18} />
+                      </button>
                     </div>
                   </div>
                 </div>
               ))}
             </div>
           )}
+
+          {((activeTab === 'sites' && sites.length === 0) || (activeTab === 'loading' && loadingPoints.length === 0) || (activeTab === 'dumping' && dumpingPoints.length === 0) || (activeTab === 'roads' && roadSegments.length === 0)) && (
+            <div className="card text-center py-12">
+              <p className="text-gray-500 text-lg">No data found</p>
+              <p className="text-gray-400 text-sm mt-2">Try adjusting your filters or create a new item</p>
+            </div>
+          )}
+
+          <div className="flex justify-center mt-6">
+            <Pagination currentPage={pagination.page} totalPages={pagination.totalPages} onPageChange={(page) => setPagination((prev) => ({ ...prev, page }))} />
+          </div>
         </>
       )}
 
       <Modal isOpen={showModal} onClose={() => setShowModal(false)} title={getModalTitle()} size="lg">
         {modalMode === 'view' && selectedItem ? (
-          <div className="space-y-3">
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="text-sm font-medium text-gray-600">Code</label>
-                <p className="text-lg">{selectedItem.code}</p>
+          <div className="space-y-6">
+            <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-6 rounded-xl border border-blue-200">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center space-x-3">
+                  {activeTab === 'sites' && <MapPin className="text-blue-600" size={32} />}
+                  {activeTab === 'loading' && <Activity className="text-green-600" size={32} />}
+                  {activeTab === 'dumping' && <Layers className="text-purple-600" size={32} />}
+                  {activeTab === 'roads' && <Route className="text-orange-600" size={32} />}
+                  <div>
+                    <h3 className="text-2xl font-bold text-gray-900">{selectedItem.name}</h3>
+                    <p className="text-sm text-gray-600 font-mono">{selectedItem.code}</p>
+                  </div>
+                </div>
+                <div>{selectedItem.isActive !== undefined && <StatusBadge status={selectedItem.isActive ? 'active' : 'inactive'} label={selectedItem.isActive ? 'Active' : 'Inactive'} />}</div>
               </div>
-              <div>
-                <label className="text-sm font-medium text-gray-600">Name</label>
-                <p className="text-lg">{selectedItem.name}</p>
-              </div>
-              {activeTab === 'sites' && (
-                <>
-                  <div>
-                    <label className="text-sm font-medium text-gray-600">Site Type</label>
-                    <p className="text-lg">{selectedItem.siteType}</p>
+            </div>
+
+            {activeTab === 'sites' && (
+              <>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="bg-white border border-gray-200 rounded-lg p-4">
+                    <div className="flex items-center space-x-2 mb-2">
+                      <Layers className="text-blue-600" size={18} />
+                      <p className="text-xs font-semibold text-gray-500 uppercase">Site Type</p>
+                    </div>
+                    <p className="text-lg font-bold text-gray-900">{getSiteTypeLabel(selectedItem.siteType)}</p>
                   </div>
-                  <div>
-                    <label className="text-sm font-medium text-gray-600">Capacity</label>
-                    <p className="text-lg">{selectedItem.capacity || '-'} ton/day</p>
+                  {selectedItem.capacity && (
+                    <div className="bg-white border border-gray-200 rounded-lg p-4">
+                      <div className="flex items-center space-x-2 mb-2">
+                        <TrendingUp className="text-green-600" size={18} />
+                        <p className="text-xs font-semibold text-gray-500 uppercase">Capacity</p>
+                      </div>
+                      <p className="text-lg font-bold text-gray-900">
+                        {selectedItem.capacity.toFixed(2)} <span className="text-sm font-normal text-gray-600">ton/day</span>
+                      </p>
+                    </div>
+                  )}
+                  {selectedItem.elevation && (
+                    <div className="bg-white border border-gray-200 rounded-lg p-4">
+                      <div className="flex items-center space-x-2 mb-2">
+                        <Navigation className="text-indigo-600" size={18} />
+                        <p className="text-xs font-semibold text-gray-500 uppercase">Elevation</p>
+                      </div>
+                      <p className="text-lg font-bold text-gray-900">
+                        {selectedItem.elevation.toFixed(2)} <span className="text-sm font-normal text-gray-600">meters</span>
+                      </p>
+                    </div>
+                  )}
+                </div>
+                {selectedItem.description && (
+                  <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                    <p className="text-xs font-semibold text-gray-500 uppercase mb-2">Description</p>
+                    <p className="text-gray-700 leading-relaxed">{selectedItem.description}</p>
                   </div>
-                </>
-              )}
-              {activeTab === 'loading' && (
-                <>
-                  <div>
-                    <label className="text-sm font-medium text-gray-600">Mining Site</label>
-                    <p className="text-lg">{selectedItem.miningSite?.name || '-'}</p>
+                )}
+                {selectedItem.latitude && selectedItem.longitude && (
+                  <div className="bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-lg p-4">
+                    <div className="flex items-center space-x-2 mb-3">
+                      <MapPin className="text-green-600" size={20} />
+                      <p className="text-sm font-semibold text-gray-700">Geographic Coordinates</p>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <p className="text-xs text-gray-600 mb-1">Latitude</p>
+                        <p className="text-base font-mono font-semibold text-gray-900">{selectedItem.latitude.toFixed(6)}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-600 mb-1">Longitude</p>
+                        <p className="text-base font-mono font-semibold text-gray-900">{selectedItem.longitude.toFixed(6)}</p>
+                      </div>
+                    </div>
                   </div>
-                  <div>
-                    <label className="text-sm font-medium text-gray-600">Coal Seam</label>
-                    <p className="text-lg">{selectedItem.coalSeam || '-'}</p>
+                )}
+              </>
+            )}
+
+            {activeTab === 'loading' && (
+              <>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="bg-white border border-gray-200 rounded-lg p-4">
+                    <div className="flex items-center space-x-2 mb-2">
+                      <MapPin className="text-blue-600" size={18} />
+                      <p className="text-xs font-semibold text-gray-500 uppercase">Mining Site</p>
+                    </div>
+                    <p className="text-base font-bold text-gray-900">{selectedItem.miningSite?.name || '-'}</p>
+                    {selectedItem.miningSite?.code && <p className="text-xs text-gray-500 font-mono mt-1">{selectedItem.miningSite.code}</p>}
                   </div>
-                </>
-              )}
-              {activeTab === 'dumping' && (
-                <>
-                  <div>
-                    <label className="text-sm font-medium text-gray-600">Dumping Type</label>
-                    <p className="text-lg">{selectedItem.dumpingType}</p>
+                  <div className="bg-white border border-gray-200 rounded-lg p-4">
+                    <div className="flex items-center space-x-2 mb-2">
+                      <Activity className="text-orange-600" size={18} />
+                      <p className="text-xs font-semibold text-gray-500 uppercase">Max Queue Size</p>
+                    </div>
+                    <p className="text-lg font-bold text-gray-900">
+                      {selectedItem.maxQueueSize} <span className="text-sm font-normal text-gray-600">trucks</span>
+                    </p>
                   </div>
-                  <div>
-                    <label className="text-sm font-medium text-gray-600">Current Stock</label>
-                    <p className="text-lg">{selectedItem.currentStock} ton</p>
+                  {selectedItem.excavator && (
+                    <div className="bg-white border border-gray-200 rounded-lg p-4">
+                      <div className="flex items-center space-x-2 mb-2">
+                        <Activity className="text-green-600" size={18} />
+                        <p className="text-xs font-semibold text-gray-500 uppercase">Excavator</p>
+                      </div>
+                      <p className="text-base font-bold text-gray-900">{selectedItem.excavator.name || selectedItem.excavator.code}</p>
+                      <p className="text-xs text-gray-500 font-mono mt-1">{selectedItem.excavator.code}</p>
+                    </div>
+                  )}
+                  {selectedItem.coalSeam && (
+                    <div className="bg-white border border-gray-200 rounded-lg p-4">
+                      <div className="flex items-center space-x-2 mb-2">
+                        <Layers className="text-purple-600" size={18} />
+                        <p className="text-xs font-semibold text-gray-500 uppercase">Coal Seam</p>
+                      </div>
+                      <p className="text-lg font-bold text-gray-900">{selectedItem.coalSeam}</p>
+                    </div>
+                  )}
+                </div>
+                {selectedItem.coalQuality && (selectedItem.coalQuality.calorie || selectedItem.coalQuality.moisture || selectedItem.coalQuality.ash_content || selectedItem.coalQuality.sulfur) && (
+                  <div className="bg-gradient-to-r from-amber-50 to-yellow-50 border border-amber-200 rounded-lg p-4">
+                    <div className="flex items-center space-x-2 mb-3">
+                      <TrendingUp className="text-amber-600" size={20} />
+                      <p className="text-sm font-semibold text-gray-700">Coal Quality Parameters</p>
+                    </div>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                      {selectedItem.coalQuality.calorie && (
+                        <div className="bg-white rounded-lg p-3 border border-amber-200">
+                          <p className="text-xs text-gray-600 mb-1">Calorie Value</p>
+                          <p className="text-lg font-bold text-gray-900">{selectedItem.coalQuality.calorie.toFixed(0)}</p>
+                          <p className="text-xs text-gray-500">kcal/kg</p>
+                        </div>
+                      )}
+                      {selectedItem.coalQuality.moisture && (
+                        <div className="bg-white rounded-lg p-3 border border-amber-200">
+                          <p className="text-xs text-gray-600 mb-1">Moisture</p>
+                          <p className="text-lg font-bold text-gray-900">{selectedItem.coalQuality.moisture.toFixed(2)}%</p>
+                        </div>
+                      )}
+                      {selectedItem.coalQuality.ash_content && (
+                        <div className="bg-white rounded-lg p-3 border border-amber-200">
+                          <p className="text-xs text-gray-600 mb-1">Ash Content</p>
+                          <p className="text-lg font-bold text-gray-900">{selectedItem.coalQuality.ash_content.toFixed(2)}%</p>
+                        </div>
+                      )}
+                      {selectedItem.coalQuality.sulfur && (
+                        <div className="bg-white rounded-lg p-3 border border-amber-200">
+                          <p className="text-xs text-gray-600 mb-1">Sulfur</p>
+                          <p className="text-lg font-bold text-gray-900">{selectedItem.coalQuality.sulfur.toFixed(2)}%</p>
+                        </div>
+                      )}
+                    </div>
                   </div>
-                </>
-              )}
-              {activeTab === 'roads' && (
-                <>
-                  <div>
-                    <label className="text-sm font-medium text-gray-600">Distance</label>
-                    <p className="text-lg">{selectedItem.distance} km</p>
+                )}
+                {selectedItem.latitude && selectedItem.longitude && (
+                  <div className="bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-lg p-4">
+                    <div className="flex items-center space-x-2 mb-3">
+                      <MapPin className="text-green-600" size={20} />
+                      <p className="text-sm font-semibold text-gray-700">Geographic Coordinates</p>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <p className="text-xs text-gray-600 mb-1">Latitude</p>
+                        <p className="text-base font-mono font-semibold text-gray-900">{selectedItem.latitude.toFixed(6)}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-600 mb-1">Longitude</p>
+                        <p className="text-base font-mono font-semibold text-gray-900">{selectedItem.longitude.toFixed(6)}</p>
+                      </div>
+                    </div>
                   </div>
-                  <div>
-                    <label className="text-sm font-medium text-gray-600">Road Condition</label>
-                    <p className="text-lg">{selectedItem.roadCondition}</p>
+                )}
+              </>
+            )}
+
+            {activeTab === 'dumping' && (
+              <>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="bg-white border border-gray-200 rounded-lg p-4">
+                    <div className="flex items-center space-x-2 mb-2">
+                      <MapPin className="text-blue-600" size={18} />
+                      <p className="text-xs font-semibold text-gray-500 uppercase">Mining Site</p>
+                    </div>
+                    <p className="text-base font-bold text-gray-900">{selectedItem.miningSite?.name || '-'}</p>
+                    {selectedItem.miningSite?.code && <p className="text-xs text-gray-500 font-mono mt-1">{selectedItem.miningSite.code}</p>}
                   </div>
-                </>
-              )}
+                  <div className="bg-white border border-gray-200 rounded-lg p-4">
+                    <div className="flex items-center space-x-2 mb-2">
+                      <Layers className="text-purple-600" size={18} />
+                      <p className="text-xs font-semibold text-gray-500 uppercase">Dumping Type</p>
+                    </div>
+                    <p className="text-lg font-bold text-gray-900">{selectedItem.dumpingType}</p>
+                  </div>
+                  {selectedItem.capacity && (
+                    <div className="bg-white border border-gray-200 rounded-lg p-4">
+                      <div className="flex items-center space-x-2 mb-2">
+                        <TrendingUp className="text-green-600" size={18} />
+                        <p className="text-xs font-semibold text-gray-500 uppercase">Total Capacity</p>
+                      </div>
+                      <p className="text-lg font-bold text-gray-900">
+                        {selectedItem.capacity.toFixed(2)} <span className="text-sm font-normal text-gray-600">ton</span>
+                      </p>
+                    </div>
+                  )}
+                  {selectedItem.currentStock !== null && selectedItem.currentStock !== undefined && (
+                    <div className="bg-white border border-gray-200 rounded-lg p-4">
+                      <div className="flex items-center space-x-2 mb-2">
+                        <Activity className="text-orange-600" size={18} />
+                        <p className="text-xs font-semibold text-gray-500 uppercase">Current Stock</p>
+                      </div>
+                      <p className="text-lg font-bold text-gray-900">
+                        {selectedItem.currentStock.toFixed(2)} <span className="text-sm font-normal text-gray-600">ton</span>
+                      </p>
+                    </div>
+                  )}
+                </div>
+                {selectedItem.capacity && selectedItem.currentStock !== null && selectedItem.currentStock !== undefined && (
+                  <div className="bg-gradient-to-r from-purple-50 to-pink-50 border border-purple-200 rounded-lg p-4">
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center space-x-2">
+                        <TrendingUp className="text-purple-600" size={20} />
+                        <p className="text-sm font-semibold text-gray-700">Storage Utilization</p>
+                      </div>
+                      <p className="text-2xl font-bold text-purple-600">{((selectedItem.currentStock / selectedItem.capacity) * 100).toFixed(1)}%</p>
+                    </div>
+                    <div className="w-full bg-gray-200 rounded-full h-3">
+                      <div className="bg-gradient-to-r from-purple-600 to-pink-600 h-3 rounded-full transition-all duration-500" style={{ width: `${Math.min((selectedItem.currentStock / selectedItem.capacity) * 100, 100)}%` }}></div>
+                    </div>
+                    <div className="flex justify-between mt-2 text-xs text-gray-600">
+                      <span>{selectedItem.currentStock.toFixed(2)} ton</span>
+                      <span>{selectedItem.capacity.toFixed(2)} ton</span>
+                    </div>
+                  </div>
+                )}
+                {selectedItem.latitude && selectedItem.longitude && (
+                  <div className="bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-lg p-4">
+                    <div className="flex items-center space-x-2 mb-3">
+                      <MapPin className="text-green-600" size={20} />
+                      <p className="text-sm font-semibold text-gray-700">Geographic Coordinates</p>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <p className="text-xs text-gray-600 mb-1">Latitude</p>
+                        <p className="text-base font-mono font-semibold text-gray-900">{selectedItem.latitude.toFixed(6)}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-600 mb-1">Longitude</p>
+                        <p className="text-base font-mono font-semibold text-gray-900">{selectedItem.longitude.toFixed(6)}</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+
+            {activeTab === 'roads' && (
+              <>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="bg-white border border-gray-200 rounded-lg p-4">
+                    <div className="flex items-center space-x-2 mb-2">
+                      <MapPin className="text-blue-600" size={18} />
+                      <p className="text-xs font-semibold text-gray-500 uppercase">Mining Site</p>
+                    </div>
+                    <p className="text-base font-bold text-gray-900">{selectedItem.miningSite?.name || '-'}</p>
+                    {selectedItem.miningSite?.code && <p className="text-xs text-gray-500 font-mono mt-1">{selectedItem.miningSite.code}</p>}
+                  </div>
+                  <div className="bg-white border border-gray-200 rounded-lg p-4">
+                    <div className="flex items-center space-x-2 mb-2">
+                      <Route className="text-orange-600" size={18} />
+                      <p className="text-xs font-semibold text-gray-500 uppercase">Distance</p>
+                    </div>
+                    <p className="text-lg font-bold text-gray-900">
+                      {selectedItem.distance} <span className="text-sm font-normal text-gray-600">km</span>
+                    </p>
+                  </div>
+                  <div className="bg-white border border-gray-200 rounded-lg p-4">
+                    <div className="flex items-center space-x-2 mb-2">
+                      <Activity className="text-green-600" size={18} />
+                      <p className="text-xs font-semibold text-gray-500 uppercase">Road Condition</p>
+                    </div>
+                    <StatusBadge status={getRoadConditionColor(selectedItem.roadCondition)} label={selectedItem.roadCondition} />
+                  </div>
+                  <div className="bg-white border border-gray-200 rounded-lg p-4">
+                    <div className="flex items-center space-x-2 mb-2">
+                      <TrendingUp className="text-indigo-600" size={18} />
+                      <p className="text-xs font-semibold text-gray-500 uppercase">Max Speed</p>
+                    </div>
+                    <p className="text-lg font-bold text-gray-900">
+                      {selectedItem.maxSpeed} <span className="text-sm font-normal text-gray-600">km/h</span>
+                    </p>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  {selectedItem.startPoint && (
+                    <div className="bg-gradient-to-r from-blue-50 to-cyan-50 border border-blue-200 rounded-lg p-4">
+                      <div className="flex items-center space-x-2 mb-2">
+                        <Navigation className="text-blue-600" size={18} />
+                        <p className="text-xs font-semibold text-gray-500 uppercase">Start Point</p>
+                      </div>
+                      <p className="text-base font-bold text-gray-900">{selectedItem.startPoint}</p>
+                    </div>
+                  )}
+                  {selectedItem.endPoint && (
+                    <div className="bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-lg p-4">
+                      <div className="flex items-center space-x-2 mb-2">
+                        <MapPin className="text-green-600" size={18} />
+                        <p className="text-xs font-semibold text-gray-500 uppercase">End Point</p>
+                      </div>
+                      <p className="text-base font-bold text-gray-900">{selectedItem.endPoint}</p>
+                    </div>
+                  )}
+                  {selectedItem.gradient !== null && selectedItem.gradient !== undefined && (
+                    <div className="bg-white border border-gray-200 rounded-lg p-4">
+                      <div className="flex items-center space-x-2 mb-2">
+                        <Activity className="text-purple-600" size={18} />
+                        <p className="text-xs font-semibold text-gray-500 uppercase">Gradient</p>
+                      </div>
+                      <p className="text-lg font-bold text-gray-900">{selectedItem.gradient.toFixed(2)}°</p>
+                    </div>
+                  )}
+                  {selectedItem.lastMaintenance && (
+                    <div className="bg-white border border-gray-200 rounded-lg p-4">
+                      <div className="flex items-center space-x-2 mb-2">
+                        <Activity className="text-orange-600" size={18} />
+                        <p className="text-xs font-semibold text-gray-500 uppercase">Last Maintenance</p>
+                      </div>
+                      <p className="text-base font-bold text-gray-900">{new Date(selectedItem.lastMaintenance).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}</p>
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+
+            <div className="flex justify-end space-x-3 pt-4 border-t">
+              <button onClick={() => setShowModal(false)} className="px-5 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg font-medium transition-colors">
+                Close
+              </button>
+              <button
+                onClick={() => {
+                  setShowModal(false);
+                  handleEdit(selectedItem);
+                }}
+                className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors flex items-center space-x-2"
+              >
+                <Edit size={18} />
+                <span>Edit Details</span>
+              </button>
             </div>
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Code *</label>
-                <input type="text" value={formData.code} onChange={(e) => setFormData({ ...formData, code: e.target.value })} className="input-field" required />
+                <label className="block text-sm font-medium text-gray-700 mb-2">Code *{modalMode === 'create' && <span className="ml-2 text-xs text-blue-600">{autoGenerateCode ? '(Auto-generated)' : ''}</span>}</label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={formData.code}
+                    onChange={(e) => {
+                      setFormData({ ...formData, code: e.target.value });
+                      if (modalMode === 'create') setAutoGenerateCode(false);
+                    }}
+                    className="input-field flex-1"
+                    required
+                    readOnly={modalMode === 'create' && autoGenerateCode}
+                  />
+                  {modalMode === 'create' && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAutoGenerateCode(true);
+                        setFormData({ ...formData, code: generateCode(activeTab) });
+                      }}
+                      className="px-3 py-2 bg-blue-50 text-blue-600 border border-blue-200 rounded-lg hover:bg-blue-100 text-sm font-medium"
+                      title="Generate new code"
+                    >
+                      Generate
+                    </button>
+                  )}
+                </div>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Name *</label>
@@ -504,23 +1316,46 @@ const LocationManagement = () => {
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">Site Type *</label>
                     <select value={formData.siteType} onChange={(e) => setFormData({ ...formData, siteType: e.target.value })} className="input-field" required>
-                      <option value="TAMBANG_TERBUKA">Tambang Terbuka</option>
-                      <option value="TAMBANG_BAWAH_TANAH">Tambang Bawah Tanah</option>
+                      <option value="PIT">Pit</option>
                       <option value="STOCKPILE">Stockpile</option>
+                      <option value="CRUSHER">Crusher</option>
                       <option value="PORT">Port</option>
+                      <option value="COAL_HAULING_ROAD">Coal Hauling Road</option>
+                      <option value="ROM_PAD">ROM Pad</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Status</label>
+                    <select value={formData.isActive ? 'true' : 'false'} onChange={(e) => setFormData({ ...formData, isActive: e.target.value === 'true' })} className="input-field">
+                      <option value="true">Active</option>
+                      <option value="false">Inactive</option>
                     </select>
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">Capacity (ton/day)</label>
-                    <input type="number" step="0.01" value={formData.capacity} onChange={(e) => setFormData({ ...formData, capacity: e.target.value })} className="input-field" />
+                    <input type="number" step="0.01" value={formData.capacity} onChange={(e) => setFormData({ ...formData, capacity: e.target.value })} className="input-field" placeholder="Optional" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Elevation (m)</label>
+                    <input type="number" step="0.01" value={formData.elevation} onChange={(e) => setFormData({ ...formData, elevation: e.target.value })} className="input-field" placeholder="Optional" />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">Latitude</label>
-                    <input type="number" step="0.000001" value={formData.latitude} onChange={(e) => setFormData({ ...formData, latitude: e.target.value })} className="input-field" />
+                    <div className="flex gap-2">
+                      <input type="number" step="0.000001" value={formData.latitude} onChange={(e) => setFormData({ ...formData, latitude: e.target.value })} className="input-field flex-1" placeholder="e.g., -4.7433" />
+                      <button type="button" onClick={() => setShowMapPicker(true)} className="px-3 py-2 bg-green-50 text-green-600 border border-green-200 rounded-lg hover:bg-green-100 text-sm font-medium flex items-center gap-1">
+                        <MapPin size={16} />
+                        Map
+                      </button>
+                    </div>
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">Longitude</label>
-                    <input type="number" step="0.000001" value={formData.longitude} onChange={(e) => setFormData({ ...formData, longitude: e.target.value })} className="input-field" />
+                    <input type="number" step="0.000001" value={formData.longitude} onChange={(e) => setFormData({ ...formData, longitude: e.target.value })} className="input-field" placeholder="e.g., 116.0384" />
+                  </div>
+                  <div className="col-span-2">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Description</label>
+                    <textarea value={formData.description} onChange={(e) => setFormData({ ...formData, description: e.target.value })} className="input-field" rows="3" placeholder="Optional description"></textarea>
                   </div>
                 </>
               )}
@@ -531,7 +1366,7 @@ const LocationManagement = () => {
                     <label className="block text-sm font-medium text-gray-700 mb-2">Mining Site *</label>
                     <select value={formData.miningSiteId} onChange={(e) => setFormData({ ...formData, miningSiteId: e.target.value })} className="input-field" required>
                       <option value="">Select Mining Site</option>
-                      {sites.map((site) => (
+                      {allSites.map((site) => (
                         <option key={site.id} value={site.id}>
                           {site.code} - {site.name}
                         </option>
@@ -539,23 +1374,93 @@ const LocationManagement = () => {
                     </select>
                   </div>
                   <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Status</label>
+                    <select value={formData.isActive ? 'true' : 'false'} onChange={(e) => setFormData({ ...formData, isActive: e.target.value === 'true' })} className="input-field">
+                      <option value="true">Active</option>
+                      <option value="false">Inactive</option>
+                    </select>
+                  </div>
+                  <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">Excavator</label>
                     <select value={formData.excavatorId} onChange={(e) => setFormData({ ...formData, excavatorId: e.target.value })} className="input-field">
-                      <option value="">Select Excavator</option>
+                      <option value="">Select Excavator (Optional)</option>
                       {excavators.map((excavator) => (
                         <option key={excavator.id} value={excavator.id}>
-                          {excavator.code} - {excavator.brand}
+                          {excavator.code} - {excavator.name}
                         </option>
                       ))}
                     </select>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Coal Seam</label>
-                    <input type="text" value={formData.coalSeam} onChange={(e) => setFormData({ ...formData, coalSeam: e.target.value })} className="input-field" />
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Max Queue Size</label>
+                    <input type="number" value={formData.maxQueueSize} onChange={(e) => setFormData({ ...formData, maxQueueSize: e.target.value })} className="input-field" min="1" />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Max Queue Size</label>
-                    <input type="number" value={formData.maxQueueSize} onChange={(e) => setFormData({ ...formData, maxQueueSize: e.target.value })} className="input-field" />
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Coal Seam</label>
+                    <input type="text" value={formData.coalSeam} onChange={(e) => setFormData({ ...formData, coalSeam: e.target.value })} className="input-field" placeholder="e.g., Seam-C2" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Latitude</label>
+                    <div className="flex gap-2">
+                      <input type="number" step="0.000001" value={formData.latitude} onChange={(e) => setFormData({ ...formData, latitude: e.target.value })} className="input-field flex-1" placeholder="e.g., -2.9629" />
+                      <button type="button" onClick={() => setShowMapPicker(true)} className="px-3 py-2 bg-green-50 text-green-600 border border-green-200 rounded-lg hover:bg-green-100 text-sm font-medium flex items-center gap-1">
+                        <MapPin size={16} />
+                        Map
+                      </button>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Longitude</label>
+                    <input type="number" step="0.000001" value={formData.longitude} onChange={(e) => setFormData({ ...formData, longitude: e.target.value })} className="input-field" placeholder="e.g., 119.4386" />
+                  </div>
+                  <div className="col-span-2 border-t pt-4">
+                    <p className="text-sm font-medium text-gray-700 mb-3">Coal Quality (Optional)</p>
+                    <div className="grid grid-cols-4 gap-3">
+                      <div>
+                        <label className="block text-xs text-gray-600 mb-1">Calorie</label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={formData.coalQuality.calorie}
+                          onChange={(e) => setFormData({ ...formData, coalQuality: { ...formData.coalQuality, calorie: e.target.value } })}
+                          className="input-field text-sm"
+                          placeholder="kcal/kg"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs text-gray-600 mb-1">Moisture (%)</label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={formData.coalQuality.moisture}
+                          onChange={(e) => setFormData({ ...formData, coalQuality: { ...formData.coalQuality, moisture: e.target.value } })}
+                          className="input-field text-sm"
+                          placeholder="0-100"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs text-gray-600 mb-1">Ash Content (%)</label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={formData.coalQuality.ash_content}
+                          onChange={(e) => setFormData({ ...formData, coalQuality: { ...formData.coalQuality, ash_content: e.target.value } })}
+                          className="input-field text-sm"
+                          placeholder="0-100"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs text-gray-600 mb-1">Sulfur (%)</label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={formData.coalQuality.sulfur}
+                          onChange={(e) => setFormData({ ...formData, coalQuality: { ...formData.coalQuality, sulfur: e.target.value } })}
+                          className="input-field text-sm"
+                          placeholder="0-100"
+                        />
+                      </div>
+                    </div>
                   </div>
                 </>
               )}
@@ -566,7 +1471,7 @@ const LocationManagement = () => {
                     <label className="block text-sm font-medium text-gray-700 mb-2">Mining Site *</label>
                     <select value={formData.miningSiteId} onChange={(e) => setFormData({ ...formData, miningSiteId: e.target.value })} className="input-field" required>
                       <option value="">Select Mining Site</option>
-                      {sites.map((site) => (
+                      {allSites.map((site) => (
                         <option key={site.id} value={site.id}>
                           {site.code} - {site.name}
                         </option>
@@ -578,17 +1483,39 @@ const LocationManagement = () => {
                     <select value={formData.dumpingType} onChange={(e) => setFormData({ ...formData, dumpingType: e.target.value })} className="input-field" required>
                       <option value="STOCKPILE">Stockpile</option>
                       <option value="CRUSHER">Crusher</option>
+                      <option value="WASTE_DUMP">Waste Dump</option>
+                      <option value="ROM_STOCKPILE">ROM Stockpile</option>
                       <option value="PORT">Port</option>
-                      <option value="ROM">ROM</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Status</label>
+                    <select value={formData.isActive ? 'true' : 'false'} onChange={(e) => setFormData({ ...formData, isActive: e.target.value === 'true' })} className="input-field">
+                      <option value="true">Active</option>
+                      <option value="false">Inactive</option>
                     </select>
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">Capacity (ton)</label>
-                    <input type="number" step="0.01" value={formData.capacity} onChange={(e) => setFormData({ ...formData, capacity: e.target.value })} className="input-field" />
+                    <input type="number" step="0.01" value={formData.capacity} onChange={(e) => setFormData({ ...formData, capacity: e.target.value })} className="input-field" placeholder="Optional" />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">Current Stock (ton)</label>
-                    <input type="number" step="0.01" value={formData.currentStock} onChange={(e) => setFormData({ ...formData, currentStock: e.target.value })} className="input-field" />
+                    <input type="number" step="0.01" value={formData.currentStock} onChange={(e) => setFormData({ ...formData, currentStock: e.target.value })} className="input-field" placeholder="0" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Latitude</label>
+                    <div className="flex gap-2">
+                      <input type="number" step="0.000001" value={formData.latitude} onChange={(e) => setFormData({ ...formData, latitude: e.target.value })} className="input-field flex-1" placeholder="e.g., -4.7400" />
+                      <button type="button" onClick={() => setShowMapPicker(true)} className="px-3 py-2 bg-green-50 text-green-600 border border-green-200 rounded-lg hover:bg-green-100 text-sm font-medium flex items-center gap-1">
+                        <MapPin size={16} />
+                        Map
+                      </button>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Longitude</label>
+                    <input type="number" step="0.000001" value={formData.longitude} onChange={(e) => setFormData({ ...formData, longitude: e.target.value })} className="input-field" placeholder="e.g., 116.0421" />
                   </div>
                 </>
               )}
@@ -599,7 +1526,7 @@ const LocationManagement = () => {
                     <label className="block text-sm font-medium text-gray-700 mb-2">Mining Site *</label>
                     <select value={formData.miningSiteId} onChange={(e) => setFormData({ ...formData, miningSiteId: e.target.value })} className="input-field" required>
                       <option value="">Select Mining Site</option>
-                      {sites.map((site) => (
+                      {allSites.map((site) => (
                         <option key={site.id} value={site.id}>
                           {site.code} - {site.name}
                         </option>
@@ -608,15 +1535,15 @@ const LocationManagement = () => {
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">Distance (km) *</label>
-                    <input type="number" step="0.01" value={formData.distance} onChange={(e) => setFormData({ ...formData, distance: e.target.value })} className="input-field" required />
+                    <input type="number" step="0.01" value={formData.distance} onChange={(e) => setFormData({ ...formData, distance: e.target.value })} className="input-field" required placeholder="e.g., 3.5" />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">Start Point</label>
-                    <input type="text" value={formData.startPoint} onChange={(e) => setFormData({ ...formData, startPoint: e.target.value })} className="input-field" />
+                    <input type="text" value={formData.startPoint} onChange={(e) => setFormData({ ...formData, startPoint: e.target.value })} className="input-field" placeholder="e.g., Point-A" />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">End Point</label>
-                    <input type="text" value={formData.endPoint} onChange={(e) => setFormData({ ...formData, endPoint: e.target.value })} className="input-field" />
+                    <input type="text" value={formData.endPoint} onChange={(e) => setFormData({ ...formData, endPoint: e.target.value })} className="input-field" placeholder="e.g., Point-B" />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">Road Condition *</label>
@@ -625,12 +1552,27 @@ const LocationManagement = () => {
                       <option value="GOOD">Good</option>
                       <option value="FAIR">Fair</option>
                       <option value="POOR">Poor</option>
-                      <option value="VERY_POOR">Very Poor</option>
+                      <option value="CRITICAL">Critical</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Status</label>
+                    <select value={formData.isActive ? 'true' : 'false'} onChange={(e) => setFormData({ ...formData, isActive: e.target.value === 'true' })} className="input-field">
+                      <option value="true">Active</option>
+                      <option value="false">Inactive</option>
                     </select>
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">Max Speed (km/h)</label>
-                    <input type="number" value={formData.maxSpeed} onChange={(e) => setFormData({ ...formData, maxSpeed: e.target.value })} className="input-field" />
+                    <input type="number" value={formData.maxSpeed} onChange={(e) => setFormData({ ...formData, maxSpeed: e.target.value })} className="input-field" placeholder="Default: 30" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Gradient (degrees)</label>
+                    <input type="number" step="0.01" value={formData.gradient} onChange={(e) => setFormData({ ...formData, gradient: e.target.value })} className="input-field" placeholder="e.g., -1.18 or 9.77" />
+                  </div>
+                  <div className="col-span-2">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Last Maintenance Date</label>
+                    <input type="date" value={formData.lastMaintenance} onChange={(e) => setFormData({ ...formData, lastMaintenance: e.target.value })} className="input-field" />
                   </div>
                 </>
               )}
@@ -646,6 +1588,17 @@ const LocationManagement = () => {
           </form>
         )}
       </Modal>
+
+      {showMapPicker && (
+        <MapPicker
+          initialLat={formData.latitude}
+          initialLng={formData.longitude}
+          onLocationSelect={(lat, lng) => {
+            setFormData({ ...formData, latitude: lat.toFixed(6), longitude: lng.toFixed(6) });
+          }}
+          onClose={() => setShowMapPicker(false)}
+        />
+      )}
     </div>
   );
 };
